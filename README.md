@@ -11,6 +11,7 @@ container:
 
 ![prototype_screenshot](prototype_screenshot.png)
 
+![screencast](container_analyzer_demo.gif)
 
 ## Run it
 
