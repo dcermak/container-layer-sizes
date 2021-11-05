@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>Container layer size analysis</title>
+    </head>
+    <body>
+        <script src="bundle.js"></script>
+
+        <div id="image_name_entry">
+            Enter the image to analyze:
+            <input id="image_name" type="text"></input>
+            <button id="pull_image_btn">Pull and analyze this image</button>
+        </div>
+
+        <div id="plot_config" hidden>
+            Select the layer to visualize:
+            <select name="layers" id="layers">
+            </select>
+            <button id="layer_confirm">Plot this layer</button>
+            <br/>
+        </div>
+
+        <div id="plot_title" hidden></div>
+        <div id="plot" hidden></div>
+    </body>
+</html>

@@ -1,0 +1,6 @@
+node_modules/
+vendor/
+dist/bundle.js
+container-layer-sizes
+dist/tsconfig.tsbuildinfo
+dist/src/
