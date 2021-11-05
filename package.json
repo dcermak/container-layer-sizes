@@ -15,7 +15,8 @@
   },
   "scripts": {
     "clean": "rm -f dist/*js",
-    "build": "tsc --pretty && webpack --config webpack.config.js --mode development"
+    "distClean": "rm -rf vendor node_modules",
+    "build": "tsc --pretty && webpack --config webpack.config.js --mode development && go build"
   },
   "devDependencies": {
     "@types/plotly.js": "^1.54.16",
