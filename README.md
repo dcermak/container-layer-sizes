@@ -20,6 +20,8 @@ To run this on your local machine, you'll need the following tools:
 - [podman](podman.io/) configured to work in rootless mode
 - node.js and yarn
 - golang
+- the prerequisites to build `github.com/containers/image` (see
+  [here](https://github.com/containers/image#building))
 
 
 When you have these tools set up, clone the repository and run:
