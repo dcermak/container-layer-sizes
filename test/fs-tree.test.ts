@@ -5,7 +5,7 @@ import { expect } from "chai";
 describe("FsSize", () => {
   it("is empty when Dir is empty", () => {
     const fS = new FsSize({
-      path: "/",
+      dirname: "/",
       total_size: 0,
       files: {},
       directories: {}
@@ -16,7 +16,7 @@ describe("FsSize", () => {
 
   it("Correctly creates the fs structure", () => {
     const d: Dir = {
-      path: "/",
+      dirname: "/",
       total_size: 1000,
       files: {
         file_1: 1,

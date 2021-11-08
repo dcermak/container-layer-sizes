@@ -9,8 +9,8 @@ func TestMakeDir(t *testing.T) {
 	if root.TotalSize != 0 {
 		t.Errorf("invalid totalSize %d, expected 0", root.TotalSize)
 	}
-	if root.Path != "/" {
-		t.Errorf("Invalid path '%s', expected '/'", root.Path)
+	if root.DirName != "/" {
+		t.Errorf("Invalid path '%s', expected '/'", root.DirName)
 	}
 }
 
@@ -53,8 +53,8 @@ func TestInsertSubdir(t *testing.T) {
 		if l := len(fooDir.Directiories); l != 0 {
 			t.Errorf("Expected no directories in subdir 'foo', but got %d", l)
 		}
-		if fooDir.Path != "foo" {
-			t.Errorf("Invalid path of foo subdirectory: %s", fooDir.Path)
+		if fooDir.DirName != "foo" {
+			t.Errorf("Invalid path of foo subdirectory: %s", fooDir.DirName)
 		}
 
 		if fooDir.TotalSize != size {

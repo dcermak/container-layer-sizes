@@ -4,7 +4,7 @@
  * This interface is the equivalent of the Dir struct from `dir.go`.
  */
 export interface Dir {
-  path: string;
+  dirname: string;
   total_size: number;
   files: { string: number } | {};
   directories: { string: Dir } | {};
@@ -71,7 +71,7 @@ function insertDirRec(
 
     insertDirRec(
       subdir,
-      `${prefix}/${subdir.path}`,
+      `${prefix}/${subdir.dirname}`,
       fsSize,
       depth + 1,
       maxDepth

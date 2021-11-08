@@ -7,14 +7,14 @@ import (
 )
 
 type Dir struct {
-	Path         string           `json:"path"`
 	TotalSize    int64            `json:"total_size"`
 	Files        map[string]int64 `json:"files"`
 	Directiories map[string]Dir   `json:"directories"`
+	DirName string `json:"dirname"`
 }
 
-func MakeDir(path string) Dir {
-	return Dir{Path: path, TotalSize: 0, Files: make(map[string]int64), Directiories: make(map[string]Dir)}
+func MakeDir(dirname string) Dir {
+	return Dir{DirName: dirname, TotalSize: 0, Files: make(map[string]int64), Directiories: make(map[string]Dir)}
 }
 
 func dropEmptyStrings(sl []string) []string {
@@ -37,7 +37,7 @@ func (d *Dir) InsertIntoDir(filePath string, size int64) {
 
 	d.TotalSize += size
 
-	if dirname == path.Base(d.Path) || dirname == "." {
+	if dirname == path.Base(d.DirName) || dirname == "." {
 		d.Files[fname] = size
 	} else {
 		if _, ok := d.Directiories[dirs[0]]; !ok {
