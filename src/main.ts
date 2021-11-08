@@ -68,7 +68,6 @@ window.onload = (): void => {
     plotElement,
     layerConfirmElement,
     layersOption,
-    _imageNameEntryElement,
     imageNameInputElement,
     pullImageButton,
     plotTitleElement
@@ -77,7 +76,6 @@ window.onload = (): void => {
     "plot",
     "layer_confirm",
     "layers",
-    "image_name_entry",
     "image_name",
     "pull_image_btn",
     "plot_title"
