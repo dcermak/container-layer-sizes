@@ -1,3 +1,5 @@
+"use strict";
+
 const path = require("path");
 
 module.exports = {
@@ -9,9 +11,9 @@ module.exports = {
       {
         test: /\.tsx?$/,
         use: "ts-loader",
-        exclude: /node_modules/,
-      },
-    ],
+        exclude: /node_modules/
+      }
+    ]
   },
   resolve: {
     extensions: [".tsx", ".ts", ".js"],
@@ -20,11 +22,11 @@ module.exports = {
       // assert: require.resolve("assert"),
       stream: require.resolve("stream-browserify"),
       buffer: false,
-      assert: false,
-    },
+      assert: false
+    }
   },
   output: {
     filename: "bundle.js",
-    path: path.resolve(__dirname, "dist"),
-  },
+    path: path.resolve(__dirname, "dist")
+  }
 };
