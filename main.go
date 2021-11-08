@@ -1,26 +1,27 @@
 package main
 
 import (
-	"archive/tar"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"strings"
+
+	"archive/tar"
+	"encoding/json"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/containers/image/v5/copy"
 	"github.com/containers/image/v5/directory"
 	"github.com/containers/image/v5/docker"
 	"github.com/containers/image/v5/signature"
-	"github.com/containers/image/v5/transports/alltransports"
-	"github.com/docker/distribution/reference"
-
+	"github.com/containers/image/v5/storage"
 	"github.com/containers/storage/pkg/reexec"
 	"github.com/containers/storage/pkg/unshare"
+
+	"github.com/docker/distribution/reference"
 	archiver "github.com/mholt/archiver/v3"
 	"github.com/syndtr/gocapability/capability"
 )
@@ -49,7 +50,7 @@ func PullImageToLocalStorage(image string) error {
 	}
 	defer policyCtx.Destroy()
 
-	localRef, err := alltransports.ParseImageName(fmt.Sprintf("containers-storage:%s", image))
+	localRef, err := storage.Transport.ParseReference(image)
 	if err != nil {
 		return err
 	}
@@ -59,11 +60,7 @@ func PullImageToLocalStorage(image string) error {
 		return err
 	}
 
-	image = "//" + image
-	if _, isNamedTagged := ref.(reference.NamedTagged); !isNamedTagged {
-		image += ":latest"
-	}
-	remoteRef, err := docker.ParseReference(image)
+	remoteRef, err := docker.NewReference(reference.TagNameOnly(ref))
 	if err != nil {
 		return err
 	}
@@ -77,7 +74,7 @@ func PullImageToLocalStorage(image string) error {
 }
 
 func CopyImageIntoDest(image string, dest string) ([]byte, error) {
-	ref, err := alltransports.ParseImageName(fmt.Sprintf("containers-storage:%s", image))
+	ref, err := storage.Transport.ParseReference(image)
 	if err != nil {
 		return nil, err
 	}
