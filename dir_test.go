@@ -82,6 +82,13 @@ func TestRecursiveInsert(t *testing.T) {
 	if gotSize := lvl2.Files["file"]; gotSize != fSize {
 		t.Errorf("Invalid size of %s: %d, expected %d", p, gotSize, fSize)
 	}
+
+	if lvl1.DirName != "level1" {
+		t.Errorf("Got an invalid dirname of the level1 directory: %s", lvl1.DirName)
+	}
+	if lvl2.DirName != "level2" {
+		t.Errorf("Got an invalid dirname of the level2 directory: %s", lvl1.DirName)
+	}
 }
 
 func TestInsertMultiple(t *testing.T) {

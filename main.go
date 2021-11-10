@@ -22,10 +22,12 @@ import (
 	"github.com/containers/storage/pkg/unshare"
 
 	"github.com/docker/distribution/reference"
+	"github.com/google/uuid"
 	archiver "github.com/mholt/archiver/v3"
 	"github.com/syndtr/gocapability/capability"
 )
 
+// capabilities for running in a user namespace
 var neededCapabilities = []capability.Cap{
 	capability.CAP_CHOWN,
 	capability.CAP_DAC_OVERRIDE,
@@ -39,7 +41,197 @@ type LayerSizes map[string]Dir
 
 var backgroundContext = context.Background()
 
-func PullImageToLocalStorage(image string) error {
+type TaskState uint
+
+const (
+	TaskStateNew = iota
+	TaskStatePulling
+	TaskStateExtracting
+	TaskStateAnalyzing
+	TaskStateFinished
+	TaskStateError
+)
+
+func TaskStateToStr(s TaskState) string {
+	switch s {
+	case TaskStateNew:
+		return "Task is new"
+	case TaskStatePulling:
+		return "Pulling image"
+	case TaskStateExtracting:
+		return "Extracting image"
+	case TaskStateAnalyzing:
+		return "Analyzing image"
+	case TaskStateFinished:
+		return "Task is finished"
+	case TaskStateError:
+		return "Task failed"
+	default:
+		panic(fmt.Sprintf("Invalid TaskState %d", s))
+	}
+}
+
+type Task struct {
+	/// URL of the container image
+	Image string    `json:"image"`
+	State TaskState `json:"state"`
+
+	/// Metadata of the container image
+	Metadata string `json:"metadata"`
+
+	/// an error if any occurred
+	error error
+
+	layers *LayerSizes
+
+	tempdir string
+}
+
+func (t *Task) MarshalJSON() ([]byte, error) {
+	type Alias Task
+
+	var errMsg string
+	if t.error == nil {
+		errMsg = ""
+	} else {
+		errMsg = t.error.Error()
+	}
+	return json.Marshal(&struct {
+		Error string `json:"error"`
+		*Alias
+	}{Error: errMsg, Alias: (*Alias)(t)})
+}
+
+func NewTask(image string) (*Task, error) {
+	tempdir, err := ioutil.TempDir("", "")
+	if err != nil {
+		return nil, err
+	}
+	layers := make(LayerSizes)
+
+	return &Task{
+			Image:   image,
+			State:   TaskStateNew,
+			layers:  &layers,
+			tempdir: tempdir,
+			error:   nil},
+		nil
+}
+
+func (t *Task) Process() {
+	setError := func(err error) {
+		t.error = err
+		t.State = TaskStateError
+	}
+
+	t.State = TaskStatePulling
+	opts := copy.Options{
+		// ProgressInterval: 1,
+		// Progress:         make(chan types.ProgressProperties),
+	}
+	if err := PullImageToLocalStorage(t.Image, &opts); err != nil {
+		setError(err)
+		return
+	}
+
+	t.State = TaskStateExtracting
+	m, err := CopyImageIntoDest(t.Image, t.tempdir)
+	if err != nil {
+		setError(err)
+		return
+	}
+
+	var manifest Manifest
+	err = json.Unmarshal(m, &manifest)
+	if err != nil {
+		setError(err)
+		return
+	}
+
+	m, err = ReadImageMetadata(t.tempdir, manifest)
+	if err != nil {
+		setError(err)
+		return
+	}
+	t.Metadata = string(m)
+
+	t.State = TaskStateAnalyzing
+	layers, err := CalculateContainerLayerSizes(t.tempdir, manifest)
+	if err != nil {
+		setError(err)
+		return
+	}
+
+	t.layers = &layers
+	t.State = TaskStateFinished
+}
+
+func (t *Task) Cleanup() error {
+	return os.RemoveAll(t.tempdir)
+}
+
+type TaskQueue struct {
+	tasks map[string]*Task
+}
+
+func NewTaskQueue() TaskQueue {
+	return TaskQueue{tasks: make(map[string]*Task)}
+}
+
+func (tq *TaskQueue) CleanupQueue() []error {
+	errors := make([]error, 1)
+	for _, t := range tq.tasks {
+		if err := t.Cleanup(); err != nil {
+			errors = append(errors, err)
+		}
+	}
+	return errors
+}
+
+func (tq *TaskQueue) AddTask(image string) (string, *Task, error) {
+	id := fmt.Sprint(uuid.New())
+
+	if t, err := NewTask(image); err != nil {
+		return "", nil, err
+	} else {
+		tq.tasks[id] = t
+		return id, t, nil
+	}
+}
+
+func (tq *TaskQueue) GetTask(id string) (*Task, error) {
+	if t, ok := tq.tasks[id]; !ok {
+		return nil, errors.New(fmt.Sprintf("Non existing task id %s", id))
+	} else {
+		return t, nil
+	}
+}
+
+func (tq *TaskQueue) RemoveTask(id string) error {
+	if t, ok := tq.tasks[id]; !ok {
+		return errors.New(fmt.Sprintf("Non existing task id %s", id))
+	} else {
+		err := t.Cleanup()
+		delete(tq.tasks, id)
+		return err
+	}
+}
+
+type ExtractedDigest struct {
+	MediaType string `json:"mediaType"`
+	Size      int    `json:"size"`
+	Digest    string `json:"digest"`
+}
+
+type Manifest struct {
+	SchemaVersion int               `json:"schemaVersion"`
+	MediaType     string            `json:"mediaType"`
+	Config        ExtractedDigest   `json:"config"`
+	Layers        []ExtractedDigest `json:"layers"`
+}
+
+/// Effectively just `podman pull $image`
+func PullImageToLocalStorage(image string, opts *copy.Options) error {
 	policy, err := signature.DefaultPolicy(nil)
 	if err != nil {
 		return err
@@ -65,9 +257,7 @@ func PullImageToLocalStorage(image string) error {
 		return err
 	}
 
-	if _, err := copy.Image(backgroundContext, policyCtx, localRef, remoteRef, &copy.Options{
-		//DestinationCtx: types.SystemContext{},
-	}); err != nil {
+	if _, err := copy.Image(backgroundContext, policyCtx, localRef, remoteRef, opts); err != nil {
 		return err
 	}
 	return nil
@@ -106,19 +296,33 @@ func CopyImageIntoDest(image string, dest string) ([]byte, error) {
 	return manifest, nil
 }
 
-func CalculateContainerLayerSizes(unpackedImageDest string, manifest []byte) (LayerSizes, error) {
-	var result map[string]interface{}
-	json.Unmarshal(manifest, &result)
+func ReadImageMetadata(unpackedImageDest string, manifest Manifest) ([]byte, error) {
+
+	mediatype := manifest.Config.MediaType
+	if mediatype != "application/vnd.docker.container.image.v1+json" {
+		return nil, errors.New(fmt.Sprintf("Invalid media type: %s", mediatype))
+	}
+
+	digest := strings.Split(manifest.Config.Digest, ":")
+	if len(digest) != 2 {
+		return nil, errors.New(fmt.Sprintf("invalid digest: %s", digest))
+	}
+
+	return ioutil.ReadFile(filepath.Join(unpackedImageDest, digest[1]))
+
+}
+
+func CalculateContainerLayerSizes(unpackedImageDest string, manifest Manifest) (LayerSizes, error) {
 
 	layers := make(LayerSizes)
 
-	for _, layer := range result["layers"].([]interface{}) {
-		mediatype := layer.(map[string]interface{})["mediaType"]
+	for _, layer := range manifest.Layers {
+		mediatype := layer.MediaType
 		if mediatype != "application/vnd.docker.image.rootfs.diff.tar.gzip" {
 			return nil, errors.New(fmt.Sprintf("Invalid media type: %s", mediatype))
 		}
 
-		digest := strings.Split(layer.(map[string]interface{})["digest"].(string), ":")
+		digest := strings.Split(layer.Digest, ":")
 		if len(digest) != 2 {
 			return nil, errors.New(fmt.Sprintf("invalid digest: %s", digest))
 		}
@@ -160,28 +364,93 @@ func main() {
 	fileServer := http.FileServer(http.Dir("./dist"))
 	http.Handle("/", fileServer)
 
-	http.HandleFunc("/data/", func(w http.ResponseWriter, r *http.Request) {
-		image := r.URL.Path[6:]
-		if err = PullImageToLocalStorage(image); err != nil {
-			panic(err)
+	tq := NewTaskQueue()
+	defer tq.CleanupQueue()
+
+	jobs := make(chan *Task)
+	go func() {
+		for t := range jobs {
+			t.Process()
+		}
+	}()
+
+	http.HandleFunc("/data", func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, fmt.Sprintf("Error parsing form data: %s", err), 400)
+			return
+		}
+		id := r.FormValue("id")
+		if id == "" {
+			http.Error(w, "Parameter id was not provided", 400)
+			return
 		}
 
-		dir, err := ioutil.TempDir("", "")
+		t, err := tq.GetTask(id)
 		if err != nil {
-			panic(err)
-		}
-		defer os.RemoveAll(dir)
-
-		manifest, err := CopyImageIntoDest(image, dir)
-		if err != nil {
-			panic(err)
+			http.Error(w, fmt.Sprintf("Got an error fetching the task with the id %s: %s", id, err.Error()), 500)
+			return
 		}
 
-		layers, err := CalculateContainerLayerSizes(dir, manifest)
-		if j, err := json.MarshalIndent(layers, "", "  "); err != nil {
-			panic(err)
+		if t.State != TaskStateFinished {
+			http.Error(
+				w,
+				fmt.Sprintf(
+					"Cannot get data from task %s, task is not in finished state (got state %s)",
+					id, TaskStateToStr(t.State)),
+				500,
+			)
+			return
+		}
+
+		if j, err := json.Marshal(t.layers); err != nil {
+			http.Error(w, err.Error(), 500)
 		} else {
 			fmt.Fprint(w, string(j))
+		}
+	})
+	http.HandleFunc("/task", func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, fmt.Sprintf("Error parsing form data: %s", err), 400)
+			return
+		}
+
+		switch r.Method {
+		case "POST":
+			image := r.PostFormValue("image")
+			if image == "" {
+				http.Error(w, "No image provided", 400)
+				return
+			}
+
+			if id, t, err := tq.AddTask(image); err != nil {
+				http.Error(w, fmt.Sprintf("Error creating task: %s", err), 400)
+			} else {
+				jobs <- t
+				fmt.Fprintf(w, id)
+			}
+			return
+		case "GET":
+			fallthrough
+		case "DELETE":
+			id := r.FormValue("id")
+			if id == "" {
+				http.Error(w, "No task id provided", 400)
+				return
+			}
+			if task, err := tq.GetTask(id); err != nil {
+				http.Error(w, err.Error(), 400)
+			} else if r.Method == "GET" {
+				if j, err := json.Marshal(task); err != nil {
+					http.Error(w, err.Error(), 500)
+				} else {
+					fmt.Fprint(w, string(j))
+				}
+			} else if r.Method == "DELETE" {
+				if err := tq.RemoveTask(id); err != nil {
+					http.Error(w, err.Error(), 500)
+				}
+			}
+			return
 		}
 	})
 	if err := http.ListenAndServe(":5050", nil); err != nil {
