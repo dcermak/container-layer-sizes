@@ -25,7 +25,7 @@ describe("FsSize", () => {
       directories: {
         etc: {
           total_size: 100,
-          path: "etc",
+          dirname: "etc",
           files: { "os-release": 3, passwd: 4 },
           directories: {}
         }
