@@ -16,7 +16,7 @@
   "scripts": {
     "clean": "rm -f dist/*js",
     "distClean": "rm -rf vendor node_modules",
-    "build": "tsc --pretty && webpack --config webpack.config.js --mode development && go build",
+    "build": "tsc --pretty && webpack --config webpack.config.js --mode development",
     "test": "mocha"
   },
   "devDependencies": {

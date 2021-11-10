@@ -1,0 +1,36 @@
+---
+name: Backend unit tests
+
+on:
+  push:
+    branches:
+      - "main"
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go: ["1.16", "1.17"]
+
+    name: Go unit tests
+    steps:
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - run: sudo apt -y install libgpgme-dev libbtrfs-dev libdevmapper-dev
+
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.go }}
+
+      - run: go test
