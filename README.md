@@ -10,6 +10,7 @@ that shows you the size of your file system inside any publicly accessible
 container:
 
 ![prototype_screenshot](prototype_screenshot.png)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fdcermak%2Fcontainer-layer-sizes.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fdcermak%2Fcontainer-layer-sizes?ref=badge_shield)
 
 ![screencast](container_analyzer_demo.gif)
 
@@ -73,3 +74,7 @@ the container sizes. The size analysis works as follows:
 
 Absolutely not! There is no logging, no cleanup and no security audit has been
 perform. Please only run this for testing on your local machine for now.
+
+
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fdcermak%2Fcontainer-layer-sizes.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fdcermak%2Fcontainer-layer-sizes?ref=badge_large)
