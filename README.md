@@ -1,5 +1,8 @@
 # Container Layer Analyzer
 
+[![Backend unit tests](https://github.com/dcermak/container-layer-sizes/actions/workflows/backend.yml/badge.svg)](https://github.com/dcermak/container-layer-sizes/actions/workflows/backend.yml)
+[![Frontend unit tests](https://github.com/dcermak/container-layer-sizes/actions/workflows/frontend.yml/badge.svg)](https://github.com/dcermak/container-layer-sizes/actions/workflows/frontend.yml)
+
 Have you ever wondered what exactly is eating up your precious space in each
 layer of your container images? Would you like to have a nice visualization of
 the file system similarly to what
