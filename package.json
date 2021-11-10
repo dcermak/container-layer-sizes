@@ -9,7 +9,7 @@
     "email": "dcermak@suse.com",
     "url": "https://github.com/dcermak/"
   },
-  "license": "GPL-2.0-or-later",
+  "license": "MIT",
   "dependencies": {
     "plotly.js": "^2.6.1"
   },
