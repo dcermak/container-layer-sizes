@@ -2,6 +2,7 @@
 
 [![Backend unit tests](https://github.com/dcermak/container-layer-sizes/actions/workflows/backend.yml/badge.svg)](https://github.com/dcermak/container-layer-sizes/actions/workflows/backend.yml)
 [![Frontend unit tests](https://github.com/dcermak/container-layer-sizes/actions/workflows/frontend.yml/badge.svg)](https://github.com/dcermak/container-layer-sizes/actions/workflows/frontend.yml)
+[![Build the container image](https://github.com/dcermak/container-layer-sizes/actions/workflows/container.yml/badge.svg)](https://github.com/dcermak/container-layer-sizes/actions/workflows/container.yml)
 
 Have you ever wondered what exactly is eating up your precious space in each
 layer of your container images? Would you like to have a nice visualization of
@@ -18,7 +19,20 @@ container:
 
 ## Run it
 
-To run this on your local machine, you'll need the following tools:
+The application is available as a container from `ghcr.io`. You can fetch and
+run it on your local machine via:
+
+```ShellSession
+$ podman run --rm -p 5050:5050 ghcr.io/dcermak/container-layer-sizes:latest
+```
+
+Then open [localhost:5050](http://localhost:5050/) in your browser and give it a
+spin.
+
+
+## Build it directly on your machine
+
+To build the analyzer on your local machine, you'll need the following tools:
 
 - [podman](podman.io/) configured to work in rootless mode
 - node.js and yarn
@@ -37,6 +51,16 @@ $ ./container-layer-sizes
 ```
 
 The web UI is then accessible on [localhost:5050](http://localhost:5050/).
+
+
+## Build it with Docker or Buildah
+
+You can build the container image that is available on `ghcr.io` locally as well
+via docker or buildah:
+```ShellSession
+$ docker build .
+$ buildah bud --layers .
+```
 
 
 ## What is missing?
