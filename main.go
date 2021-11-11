@@ -348,16 +348,23 @@ func CalculateContainerLayerSizes(unpackedImageDest string, manifest Manifest) (
 }
 
 func main() {
-	reexec.Init()
-
-	capabilities, err := capability.NewPid(0)
-	if err != nil {
-		panic(err)
+	rootless := true
+	if len(os.Args[1:]) == 1 && os.Args[1] == "--no-rootless" {
+		rootless = false
 	}
-	for _, cap := range neededCapabilities {
-		if !capabilities.Get(capability.EFFECTIVE, cap) {
-			// We miss a capability we need, create a user namespaces
-			unshare.MaybeReexecUsingUserNamespace(true)
+
+	if rootless {
+		reexec.Init()
+
+		capabilities, err := capability.NewPid(0)
+		if err != nil {
+			panic(err)
+		}
+		for _, cap := range neededCapabilities {
+			if !capabilities.Get(capability.EFFECTIVE, cap) {
+				// We miss a capability we need, create a user namespaces
+				unshare.MaybeReexecUsingUserNamespace(true)
+			}
 		}
 	}
 
