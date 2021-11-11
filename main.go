@@ -407,6 +407,7 @@ func main() {
 		} else {
 			fmt.Fprint(w, string(j))
 		}
+		tq.RemoveTask(id)
 	})
 	http.HandleFunc("/task", func(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseForm(); err != nil {
