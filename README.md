@@ -24,6 +24,7 @@ run it on your local machine via:
 
 ```ShellSession
 $ podman run --rm -p 5050:5050 ghcr.io/dcermak/container-layer-sizes:latest
+Ready. Listening on :5050
 ```
 
 Then open [localhost:5050](http://localhost:5050/) in your browser and give it a
@@ -48,6 +49,7 @@ $ cd container-layer-sizes.git
 $ yarn install
 $ yarn run build
 $ ./container-layer-sizes
+Ready. Listening on :5050
 ```
 
 The web UI is then accessible on [localhost:5050](http://localhost:5050/).

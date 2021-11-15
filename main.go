@@ -37,6 +37,10 @@ var neededCapabilities = []capability.Cap{
 	capability.CAP_SETFCAP,
 }
 
+const (
+	addr = ":5050"
+)
+
 type LayerSizes map[string]Dir
 
 var backgroundContext = context.Background()
@@ -461,7 +465,8 @@ func main() {
 			return
 		}
 	})
-	if err := http.ListenAndServe(":5050", nil); err != nil {
+	fmt.Printf("Ready. Listening on %s\n", addr)
+	if err := http.ListenAndServe(addr, nil); err != nil {
 		panic(err)
 	}
 }
