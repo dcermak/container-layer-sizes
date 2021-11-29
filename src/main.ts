@@ -161,7 +161,8 @@ class PageElements {
             ...fsSize,
             outsidetextfont: { size: 20, color: "#377eb8" },
             leaf: { opacity: 0.4 },
-            marker: { line: { width: 2 } }
+            marker: { line: { width: 2 } },
+            branchvalues: "total"
           } as Partial<Plotly.PlotData>
         ],
         layout
