@@ -2305,10 +2305,10 @@ pkg-dir@^4.2.0:
   dependencies:
     find-up "^4.0.0"
 
-plotly.js@^2.6.1:
-  version "2.6.4"
-  resolved "https://registry.yarnpkg.com/plotly.js/-/plotly.js-2.6.4.tgz#c82a2ce8b00d700371bd80231f112144f8b90752"
-  integrity sha512-TYfp9PsacmWWL06Eac775G9M7YRXutJw3LppABZvvH2r2x6RUxifvLcPnqCMTjAQEo9i97pAj7DPpseBCSZ9Bg==
+plotly.js@^2.8.0:
+  version "2.8.0"
+  resolved "https://registry.yarnpkg.com/plotly.js/-/plotly.js-2.8.0.tgz#f08271846505c6e109aca263dddb3d12be1d4e9d"
+  integrity sha512-bYuLdTlQEWMs/u3nNqV/jwERj9tw8qMDKBV8NBP1BucfapLoYIM9w4ARc3W9m93r6OYvP5I6ykUztiDmDcvA9Q==
   dependencies:
     "@plotly/d3" "3.8.0"
     "@plotly/d3-sankey" "0.7.2"
@@ -2344,7 +2344,7 @@ plotly.js@^2.6.1:
     native-promise-only "^0.8.1"
     parse-svg-path "^0.1.2"
     polybooljs "^1.2.0"
-    probe-image-size "^7.2.1"
+    probe-image-size "^7.2.2"
     regl "^2.1.0"
     regl-error2d "^2.0.12"
     regl-line2d "^3.1.2"
@@ -2374,7 +2374,7 @@ prelude-ls@~1.1.2:
   resolved "https://registry.yarnpkg.com/prelude-ls/-/prelude-ls-1.1.2.tgz#21932a549f5e52ffd9a827f570e04be62a97da54"
   integrity sha1-IZMqVJ9eUv/ZqCf1cOBL5iqX2lQ=
 
-probe-image-size@^7.2.1:
+probe-image-size@^7.2.2:
   version "7.2.2"
   resolved "https://registry.yarnpkg.com/probe-image-size/-/probe-image-size-7.2.2.tgz#e5851b9be7864f21e3bac5e6e4fac9da9055b412"
   integrity sha512-QUm+w1S9WTsT5GZB830u0BHExrUmF0J4fyRm5kbLUMEP3fl9UVYXc3xOBVqZNnH9tnvVEJO8vDk3PMtsLqjxug==
