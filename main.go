@@ -17,8 +17,10 @@ import (
 	"github.com/containers/image/v5/copy"
 	"github.com/containers/image/v5/directory"
 	"github.com/containers/image/v5/docker"
+	"github.com/containers/image/v5/image"
 	"github.com/containers/image/v5/signature"
 	"github.com/containers/image/v5/storage"
+	"github.com/containers/image/v5/types"
 	"github.com/containers/storage/pkg/reexec"
 	"github.com/containers/storage/pkg/unshare"
 
@@ -80,13 +82,27 @@ func TaskStateToStr(s TaskState) string {
 	}
 }
 
+type LayerDownloadProgress struct {
+	TotalSize  int64  `json:"total_size"`
+	Downloaded uint64 `json:"downloaded"`
+}
+
 type Task struct {
 	/// URL of the container image
-	Image string    `json:"image"`
+	Image string `json:"image"`
+
+	/// Current state of this task, can be converted to a string via `TaskStateToStr`
 	State TaskState `json:"state"`
 
 	/// Metadata of the container image
 	Metadata string `json:"metadata"`
+
+	/// the current progress for downloading the image as it would have been
+	/// created by `podman pull`
+	PullProgress map[string]LayerDownloadProgress `json:"pull_progress"`
+
+	///
+	ImageInfo *types.ImageInspectInfo `json:"image_info"`
 
 	/// an error if any occurred
 	error error
@@ -148,11 +164,65 @@ func (t *Task) Process() {
 	}
 
 	t.State = TaskStatePulling
-	opts := copy.Options{
-		// ProgressInterval: 1,
-		// Progress:         make(chan types.ProgressProperties),
+
+	t.ImageInfo, err = InspectRemoteImage(t.Image, t.ctx)
+	if err != nil {
+		setError(err)
+		return
 	}
-	if err := PullImageToLocalStorage(t.Image, &opts); err != nil {
+
+	t.PullProgress = make(map[string]LayerDownloadProgress, len(t.ImageInfo.Layers))
+	for _, layerDigest := range t.ImageInfo.Layers {
+		t.PullProgress[layerDigest] = LayerDownloadProgress{TotalSize: int64(-1), Downloaded: 0}
+	}
+
+	opts := copy.Options{
+		ProgressInterval: time.Second,
+		Progress:         make(chan types.ProgressProperties),
+	}
+
+	go func() {
+		for p := range opts.Progress {
+			curProgress, ok := t.PullProgress[string(p.Artifact.Digest)]
+			f := logrus.Fields{"task": t, "progress_report": p}
+			if !ok {
+				log.WithFields(f).Error("Received progress report for an unknown layer")
+			} else {
+				if curProgress.Downloaded > p.Offset {
+					log.WithFields(f).Error("Downloaded size is smaller then previous value")
+				}
+				if curProgress.TotalSize != 0 && curProgress.TotalSize != p.Artifact.Size {
+					log.WithFields(f).Error("Total size of the layer changed")
+				}
+			}
+
+			downloaded := p.Offset
+			if p.Event == types.ProgressEventDone || p.Event == types.ProgressEventSkipped {
+				downloaded = uint64(p.Artifact.Size)
+			}
+
+			t.PullProgress[string(p.Artifact.Digest)] = LayerDownloadProgress{
+				TotalSize:  p.Artifact.Size,
+				Downloaded: downloaded,
+			}
+		}
+	}()
+
+	if err := PullImageToLocalStorage(t.Image, t.ctx, &opts); err != nil {
+		if ctxErr := t.ctx.Err(); ctxErr == context.Canceled {
+			log.WithFields(
+				logrus.Fields{"error": err, "context_error": ctxErr, "task": t},
+			).Error("Task has been canceled")
+			return
+		} else if ctxErr == context.DeadlineExceeded {
+			log.WithFields(
+				logrus.Fields{"error": err, "context_error": ctxErr, "task": t},
+			).Error("Task has exceeded the deadline")
+			return
+		} else {
+			setError(ctxErr)
+			return
+		}
 		setError(err)
 		return
 	}
@@ -190,6 +260,7 @@ func (t *Task) Process() {
 }
 
 func (t *Task) Cleanup() error {
+	t.cancel()
 	return os.RemoveAll(t.tempdir)
 }
 
@@ -211,10 +282,10 @@ func (tq *TaskQueue) CleanupQueue() []error {
 	return errors
 }
 
-func (tq *TaskQueue) AddTask(image string) (string, *Task, error) {
+func (tq *TaskQueue) AddTask(imageUrl string) (string, *Task, error) {
 	id := fmt.Sprint(uuid.New())
 
-	if t, err := NewTask(image); err != nil {
+	if t, err := NewTask(imageUrl); err != nil {
 		return "", nil, err
 	} else {
 		tq.tasks[id] = t
@@ -253,8 +324,40 @@ type Manifest struct {
 	Layers        []ExtractedDigest `json:"layers"`
 }
 
+func InspectRemoteImage(imageUrl string, ctx context.Context) (info *types.ImageInspectInfo, err error) {
+	err = nil
+	info = nil
+	sys := types.SystemContext{}
+
+	log.WithFields(logrus.Fields{"image": imageUrl}).Info("Inspecting remote image")
+
+	ref, err := reference.ParseNormalizedNamed(imageUrl)
+	if err != nil {
+		return
+	}
+
+	remoteRef, err := docker.NewReference(reference.TagNameOnly(ref))
+	if err != nil {
+		return
+	}
+
+	imgSrc, err := remoteRef.NewImageSource(ctx, &sys)
+	if err != nil {
+		return
+	}
+	defer imgSrc.Close()
+
+	img, err := image.FromUnparsedImage(ctx, nil, image.UnparsedInstance(imgSrc, nil))
+	if err != nil {
+		return
+	}
+	return img.Inspect(ctx)
+}
+
 /// Effectively just `podman pull $image`
-func PullImageToLocalStorage(image string, opts *copy.Options) error {
+func PullImageToLocalStorage(imageUrl string, ctx context.Context, opts *copy.Options) error {
+	log.WithFields(logrus.Fields{"image": imageUrl}).Info("Pulling down an image into the local storage")
+
 	policy, err := signature.DefaultPolicy(nil)
 	if err != nil {
 		return err
@@ -265,12 +368,12 @@ func PullImageToLocalStorage(image string, opts *copy.Options) error {
 	}
 	defer policyCtx.Destroy()
 
-	localRef, err := storage.Transport.ParseReference(image)
+	localRef, err := storage.Transport.ParseReference(imageUrl)
 	if err != nil {
 		return err
 	}
 
-	ref, err := reference.ParseNormalizedNamed(image)
+	ref, err := reference.ParseNormalizedNamed(imageUrl)
 	if err != nil {
 		return err
 	}
@@ -280,14 +383,14 @@ func PullImageToLocalStorage(image string, opts *copy.Options) error {
 		return err
 	}
 
-	if _, err := copy.Image(backgroundContext, policyCtx, localRef, remoteRef, opts); err != nil {
+	if _, err := copy.Image(ctx, policyCtx, localRef, remoteRef, opts); err != nil {
 		return err
 	}
 	return nil
 }
 
-func CopyImageIntoDest(image string, dest string) ([]byte, error) {
-	ref, err := storage.Transport.ParseReference(image)
+func CopyImageIntoDest(imageUrl string, dest string) ([]byte, error) {
+	ref, err := storage.Transport.ParseReference(imageUrl)
 	if err != nil {
 		return nil, err
 	}
@@ -320,7 +423,6 @@ func CopyImageIntoDest(image string, dest string) ([]byte, error) {
 }
 
 func ReadImageMetadata(unpackedImageDest string, manifest Manifest) ([]byte, error) {
-
 	mediatype := manifest.Config.MediaType
 	if mediatype != "application/vnd.docker.container.image.v1+json" {
 		return nil, errors.New(fmt.Sprintf("Invalid media type: %s", mediatype))
@@ -336,7 +438,6 @@ func ReadImageMetadata(unpackedImageDest string, manifest Manifest) ([]byte, err
 }
 
 func CalculateContainerLayerSizes(unpackedImageDest string, manifest Manifest) (LayerSizes, error) {
-
 	layers := make(LayerSizes)
 
 	for _, layer := range manifest.Layers {
@@ -458,13 +559,13 @@ func main() {
 
 		switch r.Method {
 		case "POST":
-			image := r.PostFormValue("image")
-			if image == "" {
+			img := r.PostFormValue("image")
+			if img == "" {
 				http.Error(w, "No image provided", 400)
 				return
 			}
 
-			if id, t, err := tq.AddTask(image); err != nil {
+			if id, t, err := tq.AddTask(img); err != nil {
 				http.Error(w, fmt.Sprintf("Error creating task: %s", err), 400)
 			} else {
 				jobs <- t

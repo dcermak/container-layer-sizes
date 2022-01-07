@@ -11,10 +11,35 @@ const enum TaskState {
   Error
 }
 
+// this is the json.Marshall of github.com/containers/image/v5/types.ImageInspectInfo
+interface ImageInspectInfo {
+  readonly Tag: string;
+  readonly Created: string;
+  readonly DockerVersion: string;
+  readonly Labels?: { string: string };
+  readonly Architecture: string;
+  readonly Variant: string;
+  readonly Os: string;
+  readonly Layers: string[];
+  readonly Env?: string[];
+}
+
+// json.Marshall of the struct with the same name in main.go
+interface LayerDownloadProgress {
+  readonly total_size: number;
+  readonly downloaded: number;
+}
+
+interface PullProgress {
+  string: LayerDownloadProgress;
+}
+
 interface Task {
   readonly image: string;
   readonly state: TaskState;
   readonly error: string;
+  readonly pull_progress?: PullProgress;
+  readonly image_info?: ImageInspectInfo;
 }
 
 const layout = {
@@ -54,6 +79,132 @@ class PageElements {
   public taskId?: string = undefined;
   public state: PageState = PageState.New;
 
+  private drawImageInfoTable(
+    imageInfo: ImageInspectInfo,
+    imageUrl: string,
+    pullProgres?: { string: LayerDownloadProgress }
+  ): HTMLTableElement {
+    const layerTable = document.createElement("table");
+    const [layerTableHead, layerTableBody] = ["thead", "tbody"].map((tag) =>
+      document.createElement(tag)
+    );
+
+    const heading1 = document.createElement("th");
+    heading1.innerHTML = "property";
+    const heading2 = document.createElement("th");
+    heading2.innerHTML = "value";
+
+    const row1 = document.createElement("tr");
+    row1.appendChild(heading1);
+    row1.appendChild(heading2);
+
+    layerTableHead.appendChild(row1);
+
+    const formatDownloadProgress = (prog: LayerDownloadProgress): string => {
+      if (prog.total_size === -1) {
+        return "starting...";
+      }
+      if (prog.total_size === prog.downloaded) {
+        return "downloaded";
+      }
+
+      let prefix = Math.floor(Math.log2(prog.total_size) / 10);
+      let unitName = new Map([
+        [0, "Byte"],
+        [1, "KiB"],
+        [2, "MiB"],
+        [3, "GiB"],
+        [4, "TiB"]
+      ]).get(prefix);
+
+      if (unitName === undefined) {
+        // this should never happen…
+        prefix = 4;
+        unitName = "TiB";
+      }
+      const unitValue = 2 ** (10 * prefix);
+
+      return `downloading... ${(prog.downloaded / unitValue).toFixed(
+        2
+      )} ${unitName} of ${(prog.total_size / unitValue).toFixed(
+        2
+      )} ${unitName} done`;
+    };
+
+    const {
+      Tag,
+      DockerVersion,
+      Created,
+      Variant,
+      Architecture,
+      Os,
+      Env,
+      Labels,
+      Layers
+    } = imageInfo;
+
+    const tableLineData = [
+      ["image", imageUrl],
+      ["Created", Created],
+      ["Docker version", DockerVersion],
+      ["Architecture", Architecture],
+      ["Operating system", Os]
+    ];
+
+    [
+      ["Tag", Tag],
+      ["Variant", Variant]
+    ].forEach(([name, value]) => {
+      if (value != "") {
+        tableLineData.push([name, value]);
+      }
+    });
+
+    tableLineData.push([
+      "Layers",
+      pullProgres === undefined
+        ? Layers.join("<br/>")
+        : Layers.map(
+            (layer) =>
+              `${layer}: ${formatDownloadProgress(
+                pullProgres[layer as keyof PullProgress]
+              )}`
+          ).join("<br/>")
+    ]);
+
+    if (Env != undefined) {
+      tableLineData.push(["Environment variables", Env.join("<br/>")]);
+    }
+    if (Labels != undefined) {
+      tableLineData.push([
+        "Labels",
+        Object.entries(Labels)
+          .map(([lbl, val]) => `${lbl}: ${val}`)
+          .join("<br/>")
+      ]);
+    }
+
+    tableLineData.push();
+
+    tableLineData.forEach(([name, value]) => {
+      const line1 = document.createElement("td");
+      line1.innerHTML = name;
+
+      const line2 = document.createElement("td");
+      line2.innerHTML = value;
+
+      const row = document.createElement("tr");
+      row.appendChild(line1);
+      row.appendChild(line2);
+
+      layerTableBody.appendChild(row);
+    });
+
+    layerTable.appendChild(layerTableHead);
+    layerTable.appendChild(layerTableBody);
+
+    return layerTable;
+  }
 
   public constructor(doc: Document) {
     [
@@ -122,12 +273,29 @@ class PageElements {
         switch (task.state) {
           case TaskState.New:
           case TaskState.Pulling:
-            this.fetchStatus.textContent = `Pulling image ${imageUrl}`;
+            if (task.image_info != undefined) {
+              this.fetchStatus.hidden = true;
+              this.imageInfo.hidden = false;
+              this.imageInfo.innerHTML = "";
+
+              this.imageInfo.appendChild(
+                this.drawImageInfoTable(
+                  task.image_info,
+                  imageUrl,
+                  task.pull_progress
+                )
+              );
+            } else {
+              this.fetchStatus.hidden = false;
+              this.fetchStatus.textContent = `Pulling image ${imageUrl}`;
+            }
             break;
           case TaskState.Extracting:
+            this.fetchStatus.hidden = false;
             this.fetchStatus.textContent = `Extracting the image`;
             break;
           case TaskState.Analyzing:
+            this.fetchStatus.hidden = false;
             this.fetchStatus.textContent = `Analyzing the image ${imageUrl}`;
             break;
           case TaskState.Finished:
