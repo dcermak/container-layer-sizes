@@ -8,5 +8,6 @@ require (
 	github.com/docker/distribution v2.7.1+incompatible
 	github.com/google/uuid v1.3.0
 	github.com/mholt/archiver/v3 v3.5.1
+	github.com/sirupsen/logrus v1.8.1
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
 )

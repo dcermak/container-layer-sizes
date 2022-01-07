@@ -25,6 +25,8 @@ import (
 	"github.com/google/uuid"
 	archiver "github.com/mholt/archiver/v3"
 	"github.com/syndtr/gocapability/capability"
+
+	logrus "github.com/sirupsen/logrus"
 )
 
 // capabilities for running in a user namespace
@@ -42,6 +44,8 @@ const (
 )
 
 type LayerSizes map[string]Dir
+
+var log = logrus.New()
 
 var backgroundContext = context.Background()
 
@@ -123,7 +127,13 @@ func NewTask(image string) (*Task, error) {
 }
 
 func (t *Task) Process() {
+	var err error
+
 	setError := func(err error) {
+		log.WithFields(
+			logrus.Fields{"error": err, "task": t},
+		).Error("Error occurred when processing the task")
+
 		t.error = err
 		t.State = TaskStateError
 	}
@@ -352,6 +362,9 @@ func CalculateContainerLayerSizes(unpackedImageDest string, manifest Manifest) (
 }
 
 func main() {
+	log.SetFormatter(&logrus.JSONFormatter{})
+	log.SetLevel(logrus.TraceLevel)
+
 	rootless := true
 	if len(os.Args[1:]) == 1 && os.Args[1] == "--no-rootless" {
 		rootless = false
@@ -414,10 +427,18 @@ func main() {
 		}
 
 		if j, err := json.Marshal(t.layers); err != nil {
+			log.WithFields(logrus.Fields{
+				"layers": t.layers,
+				"id":     id,
+				"state":  t.State,
+				"error":  err,
+			}).Error("Failed to marshal the layers to json")
+
 			http.Error(w, err.Error(), 500)
 		} else {
 			fmt.Fprint(w, string(j))
 		}
+		log.WithFields(logrus.Fields{"id": id}).Trace("send data, removing task from queue")
 		tq.RemoveTask(id)
 	})
 	http.HandleFunc("/task", func(w http.ResponseWriter, r *http.Request) {
@@ -458,9 +479,22 @@ func main() {
 					fmt.Fprint(w, string(j))
 				}
 			} else if r.Method == "DELETE" {
+				log.WithFields(
+					logrus.Fields{"id": id},
+				).Debug("Removing task on user request")
+
 				if err := tq.RemoveTask(id); err != nil {
+					log.WithFields(
+						logrus.Fields{"error": err},
+					).Error("Failed to remove task")
+
 					http.Error(w, err.Error(), 500)
+					return
 				}
+
+				log.WithFields(
+					logrus.Fields{"id": id},
+				).Debug("Canceled and removed task")
 			}
 			return
 		}
