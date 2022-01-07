@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"archive/tar"
 	"encoding/json"
@@ -93,6 +94,9 @@ type Task struct {
 	layers *LayerSizes
 
 	tempdir string
+
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 func (t *Task) MarshalJSON() ([]byte, error) {
@@ -110,19 +114,24 @@ func (t *Task) MarshalJSON() ([]byte, error) {
 	}{Error: errMsg, Alias: (*Alias)(t)})
 }
 
-func NewTask(image string) (*Task, error) {
+func NewTask(imageUrl string) (*Task, error) {
 	tempdir, err := ioutil.TempDir("", "")
 	if err != nil {
 		return nil, err
 	}
 	layers := make(LayerSizes)
 
+	ctx, cancel := context.WithTimeout(backgroundContext, 5*time.Minute)
+
 	return &Task{
-			Image:   image,
+			Image:   imageUrl,
 			State:   TaskStateNew,
 			layers:  &layers,
 			tempdir: tempdir,
-			error:   nil},
+			error:   nil,
+			ctx:     ctx,
+			cancel:  cancel,
+		},
 		nil
 }
 

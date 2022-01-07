@@ -25,53 +25,78 @@ interface DataRouteReply {
   string: Dir;
 }
 
+const enum PageState {
+  New,
+  Pulling,
+  Plot,
+  Error,
+  Cancelled
+}
+
 class PageElements {
   /** default timeout to fetch an image */
   public pullTimeoutMs: number = 120 * 60 * 1000;
 
   public readonly plotConfig: HTMLElement;
   public readonly plot: HTMLElement;
-  public readonly layerConfirm: HTMLButtonElement;
-  public readonly layersOption: HTMLSelectElement;
-  public readonly imageNameInput: HTMLInputElement;
-  public readonly pullImageButton: HTMLElement;
   public readonly fetchStatus: HTMLElement;
   public readonly plotTitle: HTMLElement;
+  public readonly imageInfo: HTMLElement;
+
+  public readonly layersOption: HTMLSelectElement;
+
+  public readonly imageNameInput: HTMLInputElement;
+
+  public readonly layerConfirm: HTMLButtonElement;
+  public readonly pullImageButton: HTMLButtonElement;
+  public readonly cancelButton: HTMLButtonElement;
+
+  public taskId?: string = undefined;
+  public state: PageState = PageState.New;
+
 
   public constructor(doc: Document) {
     [
       this.plotConfig,
       this.plot,
-      this.pullImageButton,
       this.fetchStatus,
-      this.plotTitle
-    ] = [
-      "plot_config",
-      "plot",
-      "pull_image_btn",
-      "fetch_status",
-      "plot_title"
-    ].map((id) => doc.getElementById(id)!);
+      this.plotTitle,
+      this.imageInfo
+    ] = ["plot_config", "plot", "fetch_status", "plot_title", "image_info"].map(
+      (id) => doc.getElementById(id)!
+    );
 
     this.imageNameInput = doc.getElementById("image_name")! as HTMLInputElement;
-    this.layerConfirm = doc.getElementById(
-      "layer_confirm"
-    )! as HTMLButtonElement;
+
+    [this.pullImageButton, this.layerConfirm, this.cancelButton] = [
+      "pull_image_btn",
+      "layer_confirm",
+      "cancel_pull_analyze_btn"
+    ].map((id) => doc.getElementById(id)! as HTMLButtonElement);
     this.layersOption = doc.getElementById("layers")! as HTMLSelectElement;
   }
 
   public setNoImage(): void {
+    this.state = PageState.New;
+
     this.plotConfig.hidden = true;
     this.fetchStatus.hidden = true;
     this.plotTitle.hidden = true;
     this.plot.hidden = true;
+    this.imageInfo.hidden = true;
+    this.imageInfo.textContent = "";
+
+    this.cancelButton.hidden = false;
   }
 
-  public async setPullingImage(/*imageUrl: string*/): Promise<string> {
+  public async setPullingImage(): Promise<void> {
+    this.state = PageState.Pulling;
+
     this.plotConfig.hidden = true;
     this.fetchStatus.hidden = false;
     this.plotTitle.hidden = true;
     this.plot.hidden = true;
+    this.cancelButton.hidden = false;
 
     const imageUrl = this.imageNameInput.value;
     const launchResponse = await fetch("/task", {
@@ -81,14 +106,19 @@ class PageElements {
       },
       body: `image=${imageUrl}`
     });
-    const taskId = await launchResponse.text();
+    this.taskId = await launchResponse.text();
 
     this.fetchStatus.hidden = false;
     this.fetchStatus.textContent = `Pulling image ${imageUrl}`;
 
     await promiseWithTimeout(async () => {
       while (true) {
-        const task: Task = await (await fetch(`/task?id=${taskId}`)).json();
+        if (this.state != PageState.Pulling) {
+          return;
+        }
+        const task: Task = await (
+          await fetch(`/task?id=${this.taskId}`)
+        ).json();
         switch (task.state) {
           case TaskState.New:
           case TaskState.Pulling:
@@ -108,24 +138,28 @@ class PageElements {
         await sleep(1000);
       }
     }, this.pullTimeoutMs);
-
-    return taskId;
   }
 
   public setError(errMsg: string): void {
+    this.state = PageState.Error;
+
     this.plotConfig.hidden = true;
     this.plotTitle.hidden = true;
     this.plot.hidden = true;
+    this.imageInfo.hidden = true;
 
     this.fetchStatus.hidden = false;
     this.fetchStatus.textContent = errMsg;
   }
 
   public setDisplayPlot(data: DataRouteReply): void {
+    this.state = PageState.Plot;
+
     while (this.layersOption.options.length > 0) {
       this.layersOption.options.remove(0);
     }
 
+    this.cancelButton.hidden = true;
     this.fetchStatus.hidden = true;
 
     this.plotConfig.hidden = false;
@@ -169,6 +203,24 @@ class PageElements {
       );
     };
   }
+
+  public async cancel(): Promise<void> {
+    if (this.taskId === undefined) {
+      throw new Error("Cancellation has been requested, but no task id exists");
+    }
+
+    this.state = PageState.Cancelled;
+
+    this.plotConfig.hidden = true;
+    this.plotTitle.hidden = true;
+    this.plot.hidden = true;
+    this.imageInfo.hidden = true;
+
+    this.fetchStatus.hidden = false;
+    this.fetchStatus.textContent = "pull/analysis has been canceled";
+
+    await fetch(`/task?id=${this.taskId}`, { method: "DELETE" });
+  }
 }
 
 window.onload = (): void => {
@@ -176,17 +228,17 @@ window.onload = (): void => {
 
   pageElements.setNoImage();
 
-  pageElements.pullImageButton.onclick = async () => {
-    let taskId: string;
+  pageElements.cancelButton.onclick = () => pageElements.cancel();
 
+  pageElements.pullImageButton.onclick = async () => {
     try {
-      taskId = await pageElements.setPullingImage();
+      await pageElements.setPullingImage();
     } catch (err) {
       pageElements.setError((err as Error).toString());
       return;
     }
 
-    const data = await (await fetch(`/data?id=${taskId}`)).json();
+    const data = await (await fetch(`/data?id=${pageElements.taskId}`)).json();
     pageElements.setDisplayPlot(data);
   };
 };
