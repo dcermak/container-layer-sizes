@@ -25,7 +25,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
 
-      - run: sudo apt -y install libgpgme-dev libbtrfs-dev libdevmapper-dev
+      - run: |
+          sudo apt -y update
+          sudo apt -y install libgpgme-dev libbtrfs-dev libdevmapper-dev
 
       - uses: actions/checkout@v2
 

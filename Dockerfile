@@ -14,7 +14,7 @@ FROM registry.suse.com/bci/nodejs:14 as node-builder
 WORKDIR /app/
 COPY . /app/
 
-RUN npm -g install yarn && yarn install && yarn run build
+RUN npm -g install yarn && yarn install && yarn run buildProduction
 
 FROM registry.suse.com/bci/minimal:15.3 as deploy
 WORKDIR /app/

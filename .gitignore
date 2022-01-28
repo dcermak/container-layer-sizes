@@ -4,3 +4,4 @@ dist/bundle.js
 container-layer-sizes
 dist/tsconfig.tsbuildinfo
 dist/src/
+dist/bundle.js.LICENSE.txt
