@@ -17,6 +17,7 @@
     "clean": "rm -f dist/*js",
     "distClean": "rm -rf vendor node_modules",
     "build": "tsc --pretty && webpack --config webpack.config.js --mode development",
+    "buildProduction": "tsc --pretty && webpack --config webpack.config.js --mode production",
     "test": "mocha"
   },
   "devDependencies": {
@@ -30,7 +31,7 @@
     "ts-node": "^10.4.0",
     "typescript": "^4.4.4",
     "webpack": "^5.61.0",
-    "webpack-cli": "^4.9.1"
+    "webpack-cli": "^4.9.2"
   },
   "prettier": {
     "trailingComma": "none"
