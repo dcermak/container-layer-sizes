@@ -17,11 +17,12 @@
     "clean": "rm -f dist/*js",
     "distClean": "rm -rf vendor node_modules",
     "build": "tsc --pretty && webpack --config webpack.config.js --mode development",
+    "buildProduction": "tsc --pretty && webpack --config webpack.config.js --mode production",
     "test": "mocha"
   },
   "devDependencies": {
     "@types/chai": "^4.2.22",
-    "@types/mocha": "^9.0.0",
+    "@types/mocha": "^9.1.0",
     "@types/plotly.js": "^1.54.16",
     "chai": "^4.3.4",
     "mocha": "^9.1.3",
