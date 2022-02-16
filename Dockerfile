@@ -4,7 +4,7 @@ COPY . /app/
 
 RUN zypper -n ref && \
     zypper -n in --allow-downgrade libgpgme-devel libassuan-devel libbtrfs-devel device-mapper-devel awk
-RUN go build
+RUN go build ./bin/analyzer
 RUN for lib in $(ldd container-layer-sizes |grep '=>'|awk '{print $3}'); do \
         pkg=$(rpm -q --whatprovides $lib); \
         if [[ ! $pkg =~ glibc ]]; then zypper download $pkg; fi; \
@@ -18,7 +18,7 @@ RUN npm -g install yarn && yarn install && yarn run buildProduction
 
 FROM registry.suse.com/bci/bci-minimal:15.3 as deploy
 WORKDIR /app/
-COPY --from=go-builder /app/container-layer-sizes .
+COPY --from=go-builder /app/analyzer .
 COPY --from=node-builder /app/dist/ dist/
 COPY --from=go-builder /var/cache/zypp/packages/SLE_BCI/x86_64/ .
 
@@ -32,4 +32,4 @@ graphroot = "/var/lib/containers/storage"' > /etc/containers/storage.conf
 
 EXPOSE 5050
 
-ENTRYPOINT ["/app/container-layer-sizes", "--no-rootless"]
+ENTRYPOINT ["/app/analyzer", "--no-rootless"]

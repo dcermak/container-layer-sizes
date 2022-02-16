@@ -14,6 +14,8 @@ import (
 	"net/http"
 	"path/filepath"
 
+	internal "github.com/dcermak/container-layer-sizes/pkg"
+
 	"github.com/containers/image/v5/copy"
 	"github.com/containers/image/v5/directory"
 	"github.com/containers/image/v5/docker"
@@ -45,8 +47,6 @@ var neededCapabilities = []capability.Cap{
 const (
 	addr = ":5050"
 )
-
-type LayerSizes map[string]Dir
 
 var log = logrus.New()
 
@@ -107,7 +107,7 @@ type Task struct {
 	/// an error if any occurred
 	error error
 
-	layers *LayerSizes
+	layers *internal.LayerSizes
 
 	tempdir string
 
@@ -135,7 +135,7 @@ func NewTask(imageUrl string) (*Task, error) {
 	if err != nil {
 		return nil, err
 	}
-	layers := make(LayerSizes)
+	layers := make(internal.LayerSizes)
 
 	ctx, cancel := context.WithTimeout(backgroundContext, 5*time.Minute)
 
@@ -223,8 +223,6 @@ func (t *Task) Process() {
 			setError(ctxErr)
 			return
 		}
-		setError(err)
-		return
 	}
 
 	t.State = TaskStateExtracting
@@ -437,8 +435,9 @@ func ReadImageMetadata(unpackedImageDest string, manifest Manifest) ([]byte, err
 
 }
 
-func CalculateContainerLayerSizes(unpackedImageDest string, manifest Manifest) (LayerSizes, error) {
-	layers := make(LayerSizes)
+func CalculateContainerLayerSizes(unpackedImageDest string, manifest Manifest) (internal.LayerSizes, error) {
+
+	layers := make(internal.LayerSizes)
 
 	for _, layer := range manifest.Layers {
 		mediatype := layer.MediaType
@@ -451,7 +450,7 @@ func CalculateContainerLayerSizes(unpackedImageDest string, manifest Manifest) (
 			return nil, errors.New(fmt.Sprintf("invalid digest: %s", digest))
 		}
 
-		root := MakeDir("/")
+		root := internal.MakeDir("/")
 
 		archivePath := filepath.Join(unpackedImageDest, digest[1])
 		if err := archiver.NewTar().Walk(archivePath, func(f archiver.File) error {

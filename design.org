@@ -1,0 +1,11 @@
+* Backend
+
+- store the sizes of images at specific tags or hashes
+
+** Database
+
+primary key: image name (image source + path)
+
+data:
+- list of hashes in storage + associated directory tree as json
+- mapping tags -> hashes
