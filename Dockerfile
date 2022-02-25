@@ -10,7 +10,7 @@ RUN for lib in $(ldd container-layer-sizes |grep '=>'|awk '{print $3}'); do \
         if [[ ! $pkg =~ glibc ]]; then zypper download $pkg; fi; \
     done
 
-FROM registry.suse.com/bci/nodejs:14 as node-builder
+FROM registry.suse.com/bci/node:16 as node-builder
 WORKDIR /app/
 COPY . /app/
 
