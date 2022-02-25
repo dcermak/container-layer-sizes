@@ -10,13 +10,13 @@ RUN for lib in $(ldd container-layer-sizes |grep '=>'|awk '{print $3}'); do \
         if [[ ! $pkg =~ glibc ]]; then zypper download $pkg; fi; \
     done
 
-FROM registry.suse.com/bci/nodejs:14 as node-builder
+FROM registry.suse.com/bci/node:16 as node-builder
 WORKDIR /app/
 COPY . /app/
 
 RUN npm -g install yarn && yarn install && yarn run buildProduction
 
-FROM registry.suse.com/bci/minimal:15.3 as deploy
+FROM registry.suse.com/bci/bci-minimal:15.3 as deploy
 WORKDIR /app/
 COPY --from=go-builder /app/container-layer-sizes .
 COPY --from=node-builder /app/dist/ dist/
