@@ -14,14 +14,14 @@ jobs:
     runs-on: ubuntu-latest
     name: Build the container with buildah
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - run: buildah bud --layers .
 
   docker:
     runs-on: ubuntu-latest
     name: Build and publish the container with docker
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: Build and publish a Docker image for ${{ github.repository }}
         uses: macbre/push-to-ghcr@master
