@@ -3,7 +3,7 @@ module github.com/dcermak/container-layer-sizes
 go 1.16
 
 require (
-	github.com/containers/image/v5 v5.19.1
+	github.com/containers/image/v5 v5.20.0
 	github.com/containers/storage v1.38.2
 	github.com/docker/distribution v2.8.0+incompatible
 	github.com/google/uuid v1.3.0
