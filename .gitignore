@@ -8,3 +8,6 @@ dist/bundle.js.LICENSE.txt
 *.sqlite3
 /storage
 /analyzer
+/public/build/
+/public/src/
+/public/tsconfig.tsbuildinfo

@@ -19,7 +19,7 @@ RUN npm -g install yarn && yarn install && yarn run buildProduction
 FROM registry.suse.com/bci/bci-minimal:15.3 as deploy
 WORKDIR /app/
 COPY --from=go-builder /app/analyzer .
-COPY --from=node-builder /app/dist/ dist/
+COPY --from=node-builder /app/public/ public/
 COPY --from=go-builder /var/cache/zypp/packages/SLE_BCI/x86_64/ .
 
 RUN rpm -i --nodeps --force *rpm && rm -rf *rpm

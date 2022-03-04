@@ -494,7 +494,7 @@ func main() {
 		}
 	}
 
-	fileServer := http.FileServer(http.Dir("./dist"))
+	fileServer := http.FileServer(http.Dir("./public"))
 	http.Handle("/", fileServer)
 
 	tq := NewTaskQueue()
