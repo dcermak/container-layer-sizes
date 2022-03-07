@@ -11,7 +11,7 @@
   },
   "license": "MIT",
   "dependencies": {
-    "plotly.js": "^2.6.1"
+    "plotly.js": "^2.10.0"
   },
   "scripts": {
     "clean": "rm -f dist/*js",

@@ -2325,10 +2325,10 @@ pkg-dir@^4.2.0:
   dependencies:
     find-up "^4.0.0"
 
-plotly.js@^2.6.1:
-  version "2.9.0"
-  resolved "https://registry.yarnpkg.com/plotly.js/-/plotly.js-2.9.0.tgz#3ffa428c351c5665e9e0ad20234bebe23f5f7b08"
-  integrity sha512-A3kqjGq2PCeL/z19BNvg5YD712mWCMaRW2WbmYA+qpdbNPUjBNjMK/MWXDi7pV53CUM2ZKAqre4j6Uy7bIoAGA==
+plotly.js@^2.10.0:
+  version "2.10.0"
+  resolved "https://registry.yarnpkg.com/plotly.js/-/plotly.js-2.10.0.tgz#633bbf2caae34c2d994042fac6cdad7107759dc9"
+  integrity sha512-LnEW+0Hk5wFWh2U4K+GAHqSiMa4lJiVjRVJY/CxTCj1goIFSwV7HDC+ZGDWKgct7r91bEXYdti18ekvq+79l3g==
   dependencies:
     "@plotly/d3" "3.8.0"
     "@plotly/d3-sankey" "0.7.2"
