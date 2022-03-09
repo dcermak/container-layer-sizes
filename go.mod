@@ -5,7 +5,7 @@ go 1.16
 require (
 	github.com/containers/image/v5 v5.20.0
 	github.com/containers/storage v1.38.2
-	github.com/docker/distribution v2.8.0+incompatible
+	github.com/docker/distribution v2.8.1+incompatible
 	github.com/google/uuid v1.3.0
 	github.com/mholt/archiver/v3 v3.5.1
 	github.com/sirupsen/logrus v1.8.1
