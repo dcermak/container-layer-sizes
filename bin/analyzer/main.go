@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"archive/tar"
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
@@ -17,9 +16,9 @@ import (
 	internal "github.com/dcermak/container-layer-sizes/pkg"
 
 	"github.com/containers/image/v5/copy"
-	"github.com/containers/image/v5/directory"
 	"github.com/containers/image/v5/docker"
 	"github.com/containers/image/v5/image"
+	"github.com/containers/image/v5/oci/layout"
 	"github.com/containers/image/v5/signature"
 	"github.com/containers/image/v5/storage"
 	"github.com/containers/image/v5/transports/alltransports"
@@ -29,7 +28,7 @@ import (
 
 	"github.com/docker/distribution/reference"
 	"github.com/google/uuid"
-	archiver "github.com/mholt/archiver/v3"
+	archiver "github.com/mholt/archiver/v4"
 	"github.com/syndtr/gocapability/capability"
 
 	logrus "github.com/sirupsen/logrus"
@@ -232,7 +231,9 @@ func (t *Task) Process() {
 				log.WithFields(f).Error("Received progress report for an unknown layer")
 			} else {
 				if curProgress.Downloaded > p.Offset {
-					log.WithFields(f).Error("Downloaded size is smaller then previous value")
+					log.WithFields(
+						f,
+					).Error("Downloaded size is smaller then previous value")
 				}
 				if curProgress.TotalSize != 0 && curProgress.TotalSize != p.Artifact.Size {
 					log.WithFields(f).Error("Total size of the layer changed")
@@ -280,7 +281,7 @@ func (t *Task) Process() {
 	}
 
 	t.State = TaskStateExtracting
-	m, err := CopyImageIntoDest(t.localReference, t.tempdir)
+	m, err := CopyImageAsOciIntoDest(t.localReference, t.tempdir)
 	if err != nil {
 		setError(err)
 		return
@@ -293,7 +294,7 @@ func (t *Task) Process() {
 		return
 	}
 
-	m, err = ReadImageMetadata(t.tempdir, manifest)
+	m, err = ReadOciImageMetadata(t.tempdir, manifest)
 	if err != nil {
 		setError(err)
 		return
@@ -424,7 +425,7 @@ func PullImageToLocalStorage(remoteRef types.ImageReference, localRef types.Imag
 	return nil
 }
 
-func CopyImageIntoDest(ref types.ImageReference, dest string) ([]byte, error) {
+func CopyImageAsOciIntoDest(ref types.ImageReference, dest string) ([]byte, error) {
 	log.WithFields(
 		logrus.Fields{
 			"local reference": ref.StringWithinTransport(),
@@ -438,7 +439,20 @@ func CopyImageIntoDest(ref types.ImageReference, dest string) ([]byte, error) {
 	}
 	defer img.Close()
 
-	destRef, err := directory.Transport.ParseReference("//" + dest)
+	nameAndTag := strings.Split(ref.DockerReference().Name(), ":")
+	tag := "latest"
+	if len(nameAndTag) == 0 || len(nameAndTag) > 2 {
+		return nil, errors.New(
+			fmt.Sprintf(
+				"Invalid image name: %s",
+				ref.DockerReference().Name(),
+			),
+		)
+	} else if len(nameAndTag) == 2 {
+		tag = nameAndTag[1]
+	}
+
+	destRef, err := layout.Transport.ParseReference(dest + ":" + tag)
 	if err != nil {
 		return nil, err
 	}
@@ -459,9 +473,9 @@ func CopyImageIntoDest(ref types.ImageReference, dest string) ([]byte, error) {
 	return manifest, nil
 }
 
-func ReadImageMetadata(unpackedImageDest string, manifest Manifest) ([]byte, error) {
+func ReadOciImageMetadata(unpackedImageDest string, manifest Manifest) ([]byte, error) {
 	mediatype := manifest.Config.MediaType
-	if mediatype != "application/vnd.docker.container.image.v1+json" {
+	if mediatype != "application/vnd.oci.image.config.v1+json" {
 		return nil, errors.New(fmt.Sprintf("Invalid media type: %s", mediatype))
 	}
 
@@ -470,17 +484,15 @@ func ReadImageMetadata(unpackedImageDest string, manifest Manifest) ([]byte, err
 		return nil, errors.New(fmt.Sprintf("invalid digest: %s", digest))
 	}
 
-	return ioutil.ReadFile(filepath.Join(unpackedImageDest, digest[1]))
-
+	return ioutil.ReadFile(filepath.Join(unpackedImageDest, "blobs", "sha256", digest[1]))
 }
 
 func CalculateContainerLayerSizes(unpackedImageDest string, manifest Manifest) (internal.LayerSizes, error) {
-
 	layers := make(internal.LayerSizes)
 
 	for _, layer := range manifest.Layers {
 		mediatype := layer.MediaType
-		if mediatype != "application/vnd.docker.image.rootfs.diff.tar.gzip" {
+		if mediatype != "application/vnd.oci.image.layer.v1.tar+gzip" {
 			return nil, errors.New(fmt.Sprintf("Invalid media type: %s", mediatype))
 		}
 
@@ -491,16 +503,30 @@ func CalculateContainerLayerSizes(unpackedImageDest string, manifest Manifest) (
 
 		root := internal.MakeDir("/")
 
-		archivePath := filepath.Join(unpackedImageDest, digest[1])
-		if err := archiver.NewTar().Walk(archivePath, func(f archiver.File) error {
-			p := f.Header.(*tar.Header).Name
-			if f.IsDir() {
-				return nil
-			}
-			root.InsertIntoDir(p, f.Size())
-			return nil
-		}); err != nil {
+		archivePath := filepath.Join(unpackedImageDest, "blobs", "sha256", digest[1])
+		f, err := os.Open(archivePath)
+		if err != nil {
 			return nil, err
+		}
+
+		format, err := archiver.Identify(archivePath, f)
+		if err != nil {
+			return nil, err
+		}
+
+		if ex, ok := format.(archiver.Extractor); ok {
+			err := ex.Extract(backgroundContext, f, nil, func(ctx context.Context, f archiver.File) error {
+				if f.IsDir() {
+					return nil
+				}
+				root.InsertIntoDir(f.NameInArchive, f.Size())
+				return nil
+			})
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, errors.New(fmt.Sprintf("%u is not an Extractor", ex))
 		}
 
 		layers[digest[1]] = root
