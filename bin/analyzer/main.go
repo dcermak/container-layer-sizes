@@ -22,6 +22,7 @@ import (
 	"github.com/containers/image/v5/image"
 	"github.com/containers/image/v5/signature"
 	"github.com/containers/image/v5/storage"
+	"github.com/containers/image/v5/transports/alltransports"
 	"github.com/containers/image/v5/types"
 	"github.com/containers/storage/pkg/reexec"
 	"github.com/containers/storage/pkg/unshare"
@@ -111,6 +112,13 @@ type Task struct {
 
 	tempdir string
 
+	// the reference to the "remote" image (usually this is expected to
+	// exist on a registry, but it can actually be a local one as well ;-))
+	remoteReference types.ImageReference
+
+	// reference to the image in the local containers storage
+	localReference types.ImageReference
+
 	ctx    context.Context
 	cancel context.CancelFunc
 }
@@ -137,16 +145,51 @@ func NewTask(imageUrl string) (*Task, error) {
 	}
 	layers := make(internal.LayerSizes)
 
-	ctx, cancel := context.WithTimeout(backgroundContext, 5*time.Minute)
+	var remoteReference, localReference types.ImageReference
+	// the image url does not specify a transport => assume it's a url to a registry
+	if parts := strings.Split(imageUrl, ":"); len(parts) < 2 {
+		ref, err := reference.ParseNormalizedNamed(imageUrl)
+		if err != nil {
+			return nil, err
+		}
 
+		remoteReference, err = docker.NewReference(reference.TagNameOnly(ref))
+		if err != nil {
+			return nil, err
+		}
+
+		localReference, err = storage.Transport.ParseReference(imageUrl)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// the image includes the transport so we just parse it from all transports
+		remoteReference, err = alltransports.ParseImageName(imageUrl)
+		if err != nil {
+			return nil, err
+		}
+
+		// but for the local storage we have to omit the transport part,
+		// as ParseReference must not be called on an url with the
+		// transport
+		urlWithoutTransport := strings.Join(parts[1:], ":")
+		localReference, err = storage.Transport.ParseReference(urlWithoutTransport)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(backgroundContext, 5*time.Minute)
 	return &Task{
-			Image:   imageUrl,
-			State:   TaskStateNew,
-			layers:  &layers,
-			tempdir: tempdir,
-			error:   nil,
-			ctx:     ctx,
-			cancel:  cancel,
+			Image:           imageUrl,
+			State:           TaskStateNew,
+			layers:          &layers,
+			tempdir:         tempdir,
+			error:           nil,
+			ctx:             ctx,
+			cancel:          cancel,
+			remoteReference: remoteReference,
+			localReference:  localReference,
 		},
 		nil
 }
@@ -154,18 +197,18 @@ func NewTask(imageUrl string) (*Task, error) {
 func (t *Task) Process() {
 	var err error
 
-	setError := func(err error) {
+	setError := func(e error) {
 		log.WithFields(
-			logrus.Fields{"error": err, "task": t},
+			logrus.Fields{"error": e, "task": t},
 		).Error("Error occurred when processing the task")
 
-		t.error = err
+		t.error = e
 		t.State = TaskStateError
 	}
 
 	t.State = TaskStatePulling
 
-	t.ImageInfo, err = InspectRemoteImage(t.Image, t.ctx)
+	t.ImageInfo, err = InspectRemoteImage(t.remoteReference, t.ctx)
 	if err != nil {
 		setError(err)
 		return
@@ -208,7 +251,14 @@ func (t *Task) Process() {
 		}
 	}()
 
-	if err := PullImageToLocalStorage(t.Image, t.ctx, &opts); err != nil {
+	if t.remoteReference.Transport().Name() == t.localReference.Transport().Name() {
+		log.WithFields(
+			logrus.Fields{
+				"remote reference": t.remoteReference.StringWithinTransport(),
+				"local reference":  t.localReference.StringWithinTransport(),
+			},
+		).Trace("Not pulling image into local storage, as it is already present locally")
+	} else if err := PullImageToLocalStorage(t.remoteReference, t.localReference, t.ctx, &opts); err != nil {
 		if ctxErr := t.ctx.Err(); ctxErr == context.Canceled {
 			log.WithFields(
 				logrus.Fields{"error": err, "context_error": ctxErr, "task": t},
@@ -220,13 +270,17 @@ func (t *Task) Process() {
 			).Error("Task has exceeded the deadline")
 			return
 		} else {
-			setError(ctxErr)
+			if ctxErr != nil {
+				setError(ctxErr)
+			} else {
+				setError(err)
+			}
 			return
 		}
 	}
 
 	t.State = TaskStateExtracting
-	m, err := CopyImageIntoDest(t.Image, t.tempdir)
+	m, err := CopyImageIntoDest(t.localReference, t.tempdir)
 	if err != nil {
 		setError(err)
 		return
@@ -322,24 +376,16 @@ type Manifest struct {
 	Layers        []ExtractedDigest `json:"layers"`
 }
 
-func InspectRemoteImage(imageUrl string, ctx context.Context) (info *types.ImageInspectInfo, err error) {
+func InspectRemoteImage(ref types.ImageReference, ctx context.Context) (info *types.ImageInspectInfo, err error) {
 	err = nil
 	info = nil
 	sys := types.SystemContext{}
 
-	log.WithFields(logrus.Fields{"image": imageUrl}).Info("Inspecting remote image")
+	log.WithFields(
+		logrus.Fields{"reference": ref.StringWithinTransport()},
+	).Info("Inspecting image")
 
-	ref, err := reference.ParseNormalizedNamed(imageUrl)
-	if err != nil {
-		return
-	}
-
-	remoteRef, err := docker.NewReference(reference.TagNameOnly(ref))
-	if err != nil {
-		return
-	}
-
-	imgSrc, err := remoteRef.NewImageSource(ctx, &sys)
+	imgSrc, err := ref.NewImageSource(ctx, &sys)
 	if err != nil {
 		return
 	}
@@ -347,14 +393,20 @@ func InspectRemoteImage(imageUrl string, ctx context.Context) (info *types.Image
 
 	img, err := image.FromUnparsedImage(ctx, nil, image.UnparsedInstance(imgSrc, nil))
 	if err != nil {
+		log.Trace("Failed to generate a new image from an unparsed image")
 		return
 	}
 	return img.Inspect(ctx)
 }
 
 /// Effectively just `podman pull $image`
-func PullImageToLocalStorage(imageUrl string, ctx context.Context, opts *copy.Options) error {
-	log.WithFields(logrus.Fields{"image": imageUrl}).Info("Pulling down an image into the local storage")
+func PullImageToLocalStorage(remoteRef types.ImageReference, localRef types.ImageReference, ctx context.Context, opts *copy.Options) error {
+	log.WithFields(
+		logrus.Fields{
+			"remote reference": remoteRef.StringWithinTransport(),
+			"local reference":  localRef.StringWithinTransport(),
+		},
+	).Info("Pulling an image into the local storage")
 
 	policy, err := signature.DefaultPolicy(nil)
 	if err != nil {
@@ -366,32 +418,19 @@ func PullImageToLocalStorage(imageUrl string, ctx context.Context, opts *copy.Op
 	}
 	defer policyCtx.Destroy()
 
-	localRef, err := storage.Transport.ParseReference(imageUrl)
-	if err != nil {
-		return err
-	}
-
-	ref, err := reference.ParseNormalizedNamed(imageUrl)
-	if err != nil {
-		return err
-	}
-
-	remoteRef, err := docker.NewReference(reference.TagNameOnly(ref))
-	if err != nil {
-		return err
-	}
-
 	if _, err := copy.Image(ctx, policyCtx, localRef, remoteRef, opts); err != nil {
 		return err
 	}
 	return nil
 }
 
-func CopyImageIntoDest(imageUrl string, dest string) ([]byte, error) {
-	ref, err := storage.Transport.ParseReference(imageUrl)
-	if err != nil {
-		return nil, err
-	}
+func CopyImageIntoDest(ref types.ImageReference, dest string) ([]byte, error) {
+	log.WithFields(
+		logrus.Fields{
+			"local reference": ref.StringWithinTransport(),
+			"destination":     dest,
+		}).Info("Copying image into the destination folder")
+
 	ctx := context.Background()
 	img, err := ref.NewImage(ctx, nil)
 	if err != nil {
