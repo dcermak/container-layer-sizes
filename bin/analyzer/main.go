@@ -207,7 +207,7 @@ func (t *Task) Process() {
 
 	t.State = TaskStatePulling
 
-	t.ImageInfo, err = InspectRemoteImage(t.remoteReference, t.ctx)
+	t.ImageInfo, err = InspectImage(t.remoteReference, t.ctx)
 	if err != nil {
 		setError(err)
 		return
@@ -377,7 +377,7 @@ type Manifest struct {
 	Layers        []ExtractedDigest `json:"layers"`
 }
 
-func InspectRemoteImage(ref types.ImageReference, ctx context.Context) (info *types.ImageInspectInfo, err error) {
+func InspectImage(ref types.ImageReference, ctx context.Context) (info *types.ImageInspectInfo, err error) {
 	err = nil
 	info = nil
 	sys := types.SystemContext{}
