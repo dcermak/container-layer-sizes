@@ -34,9 +34,8 @@ import (
 	"github.com/docker/distribution/reference"
 	"github.com/google/uuid"
 	archiver "github.com/mholt/archiver/v4"
-	"github.com/syndtr/gocapability/capability"
-
 	logrus "github.com/sirupsen/logrus"
+	"github.com/syndtr/gocapability/capability"
 )
 
 // capabilities for running in a user namespace
@@ -93,14 +92,11 @@ type LayerDownloadProgress struct {
 }
 
 type Task struct {
-	/// URL of the container image
+	/// URL or otherwise fully qualified name of this container image
 	Image string `json:"image"`
 
 	/// Current state of this task, can be converted to a string via `TaskStateToStr`
 	State TaskState `json:"state"`
-
-	/// Metadata of the container image
-	Metadata string `json:"metadata"`
 
 	Manifest Manifest `json:"manifest"`
 
@@ -109,7 +105,7 @@ type Task struct {
 	PullProgress map[string]LayerDownloadProgress `json:"pull_progress"`
 
 	///
-	ImageInfo *types.ImageInspectInfo `json:"image_info"`
+	ImageInfo *types.ImageInspectInfo
 
 	/// The digest of this image in oci form
 	ImageDigest string
@@ -121,12 +117,16 @@ type Task struct {
 
 	tempdir string
 
+	tag string
+
 	// the reference to the "remote" image (usually this is expected to
 	// exist on a registry, but it can actually be a local one as well ;-))
 	remoteReference types.ImageReference
 
 	// reference to the image in the local containers storage
 	localReference types.ImageReference
+
+	ociLocalReference types.ImageReference
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -155,8 +155,28 @@ func NewTask(imageUrl string) (*Task, error) {
 	layers := make(internal.LayerSizes)
 
 	var remoteReference, localReference types.ImageReference
+
+	urlWithoutTransport := imageUrl
 	// the image url does not specify a transport => assume it's a url to a registry
-	if parts := strings.Split(imageUrl, ":"); len(parts) < 2 {
+
+	parts := strings.Split(imageUrl, ":")
+	if t := alltransports.TransportFromImageName(imageUrl); t != nil {
+		// the image includes the transport so we just parse it from all transports
+		remoteReference, err = alltransports.ParseImageName(imageUrl)
+		if err != nil {
+			return nil, err
+		}
+
+		// but for the local storage we have to omit the transport part,
+		// as ParseReference must not be called on an url with the
+		// transport
+		urlWithoutTransport = strings.Join(parts[1:], ":")
+		localReference, err = storage.Transport.ParseReference(urlWithoutTransport)
+		if err != nil {
+			return nil, err
+		}
+
+	} else {
 		ref, err := reference.ParseNormalizedNamed(imageUrl)
 		if err != nil {
 			return nil, err
@@ -171,34 +191,38 @@ func NewTask(imageUrl string) (*Task, error) {
 		if err != nil {
 			return nil, err
 		}
-	} else {
-		// the image includes the transport so we just parse it from all transports
-		remoteReference, err = alltransports.ParseImageName(imageUrl)
-		if err != nil {
-			return nil, err
-		}
+	}
 
-		// but for the local storage we have to omit the transport part,
-		// as ParseReference must not be called on an url with the
-		// transport
-		urlWithoutTransport := strings.Join(parts[1:], ":")
-		localReference, err = storage.Transport.ParseReference(urlWithoutTransport)
-		if err != nil {
-			return nil, err
-		}
+	nameAndTag := strings.Split(urlWithoutTransport, ":")
+	tag := "latest"
+	if len(nameAndTag) == 0 || len(nameAndTag) > 2 {
+		return nil, errors.New(
+			fmt.Sprintf(
+				"Invalid image name: %s", urlWithoutTransport,
+			),
+		)
+	} else if len(nameAndTag) == 2 {
+		tag = nameAndTag[1]
+	}
+
+	ociLocalReference, err := layout.Transport.ParseReference(tempdir + ":" + tag)
+	if err != nil {
+		return nil, err
 	}
 
 	ctx, cancel := context.WithTimeout(backgroundContext, 5*time.Minute)
 	return &Task{
-			Image:           imageUrl,
-			State:           TaskStateNew,
-			layers:          &layers,
-			tempdir:         tempdir,
-			error:           nil,
-			ctx:             ctx,
-			cancel:          cancel,
-			remoteReference: remoteReference,
-			localReference:  localReference,
+			Image:             imageUrl,
+			State:             TaskStateNew,
+			layers:            &layers,
+			tempdir:           tempdir,
+			error:             nil,
+			ctx:               ctx,
+			cancel:            cancel,
+			remoteReference:   remoteReference,
+			localReference:    localReference,
+			ociLocalReference: ociLocalReference,
+			tag:               tag,
 		},
 		nil
 }
@@ -303,13 +327,6 @@ func (t *Task) Process() {
 		setError(err)
 		return
 	}
-
-	m, err = ReadOciImageMetadata(t.tempdir, manifest)
-	if err != nil {
-		setError(err)
-		return
-	}
-	t.Metadata = string(m)
 
 	t.State = TaskStateAnalyzing
 	layers, err := CalculateContainerLayerSizes(t.tempdir, manifest)
@@ -468,20 +485,6 @@ func CopyImage(sourceRef types.ImageReference, destRef types.ImageReference, ctx
 	} else {
 		return manifest, nil
 	}
-}
-
-func ReadOciImageMetadata(unpackedImageDest string, manifest Manifest) ([]byte, error) {
-	mediatype := manifest.Config.MediaType
-	if mediatype != "application/vnd.oci.image.config.v1+json" {
-		return nil, errors.New(fmt.Sprintf("Invalid media type: %s", mediatype))
-	}
-
-	digest := strings.Split(manifest.Config.Digest, ":")
-	if len(digest) != 2 {
-		return nil, errors.New(fmt.Sprintf("invalid digest: %s", digest))
-	}
-
-	return ioutil.ReadFile(filepath.Join(unpackedImageDest, "blobs", "sha256", digest[1]))
 }
 
 func CalculateContainerLayerSizes(unpackedImageDest string, manifest Manifest) (internal.LayerSizes, error) {

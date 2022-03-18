@@ -53,7 +53,7 @@
 
 <main>
   {#if $pageState === PageState.Plot || $pageState === PageState.Pulling}
-    {#if currentTask !== undefined && currentTask.image_info !== undefined && currentTask.image_info !== null}
+    {#if currentTask !== undefined && currentTask.ImageInfo !== undefined && currentTask.ImageInfo !== null}
       <table>
         <thead>
           <td>property</td>
@@ -66,37 +66,37 @@
           </tr>
           <tr>
             <td>Created</td>
-            <td>{currentTask.image_info.Created}</td>
+            <td>{currentTask.ImageInfo.Created}</td>
           </tr>
           <tr>
             <td>Docker Version</td>
-            <td>{currentTask.image_info.DockerVersion}</td>
+            <td>{currentTask.ImageInfo.DockerVersion}</td>
           </tr>
           <tr>
             <td>Architecture</td>
-            <td>{currentTask.image_info.Architecture}</td>
+            <td>{currentTask.ImageInfo.Architecture}</td>
           </tr>
           <tr>
             <td>Operating System</td>
-            <td>{currentTask.image_info.Os}</td>
+            <td>{currentTask.ImageInfo.Os}</td>
           </tr>
-          {#if currentTask.image_info.Tag !== ""}
+          {#if currentTask.ImageInfo.Tag !== ""}
             <tr>
               <td>Tag</td>
-              <td>{currentTask.image_info.Tag}</td>
+              <td>{currentTask.ImageInfo.Tag}</td>
             </tr>
           {/if}
-          {#if currentTask.image_info.Variant !== ""}
+          {#if currentTask.ImageInfo.Variant !== ""}
             <tr>
               <td>Variant</td>
-              <td>{currentTask.image_info.Variant}</td>
+              <td>{currentTask.ImageInfo.Variant}</td>
             </tr>
           {/if}
           {#if $pageState === PageState.Pulling && currentTask.pull_progress !== undefined && currentTask.pull_progress !== null}
             <tr>
               <td>Layers</td>
               <td>
-                {#each currentTask.image_info.Layers as layer}
+                {#each currentTask.ImageInfo.Layers as layer}
                   {layer}: {formatDownloadProgress(
                     currentTask.pull_progress,
                     layer
@@ -105,21 +105,21 @@
               </td>
             </tr>
           {/if}
-          {#if currentTask.image_info.Env !== undefined && currentTask.image_info.Env !== null && currentTask.image_info.Env.length > 0}
+          {#if currentTask.ImageInfo.Env !== undefined && currentTask.ImageInfo.Env !== null && currentTask.ImageInfo.Env.length > 0}
             <tr>
               <td>Environment Variables</td>
               <td>
-                {#each currentTask.image_info.Env as env}
+                {#each currentTask.ImageInfo.Env as env}
                   {env}<br />
                 {/each}
               </td>
             </tr>
           {/if}
-          {#if currentTask.image_info.Labels !== undefined && currentTask.image_info.Labels !== null && Object.entries(currentTask.image_info.Labels).length > 0}
+          {#if currentTask.ImageInfo.Labels !== undefined && currentTask.ImageInfo.Labels !== null && Object.entries(currentTask.ImageInfo.Labels).length > 0}
             <tr>
               <td>Labels</td>
               <td>
-                {#each Object.entries(currentTask.image_info.Labels) as [lbl, val]}
+                {#each Object.entries(currentTask.ImageInfo.Labels) as [lbl, val]}
                   {lbl}: {val}<br />
                 {/each}
               </td>

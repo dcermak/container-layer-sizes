@@ -41,8 +41,8 @@ export interface Task {
   readonly state: TaskState;
   readonly error: string;
   readonly pull_progress: PullProgress | undefined | null;
-  readonly image_info: ImageInspectInfo | undefined | null;
-  readonly manifest: Manifest | undefined | null;
+  readonly ImageInfo: ImageInspectInfo | undefined | null;
+  readonly ImageDigest: string;
 }
 
 export interface DataRouteReply {
