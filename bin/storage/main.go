@@ -19,6 +19,9 @@ var log = logrus.New()
 
 func backend(s *internal.SQLiteBackend) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, PUT, DELETE")
+
 		switch r.Method {
 		case "GET":
 			if err := r.ParseForm(); err != nil {
@@ -131,6 +134,12 @@ func backend(s *internal.SQLiteBackend) func(w http.ResponseWriter, r *http.Requ
 						err,
 					),
 					http.StatusBadRequest,
+				)
+				log.WithFields(logrus.Fields{
+					"error": err,
+					"body":  string(body[:]),
+				}).Error(
+					"Could not unmarshal the 'image_history' parameter from json",
 				)
 				return
 			}
