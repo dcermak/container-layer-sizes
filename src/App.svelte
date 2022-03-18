@@ -45,13 +45,17 @@
       }
 
       activeTask.set(t);
-      if (t.state === TaskState.Finished) {
+      if (t.state === TaskState.Finished || t.state === TaskState.Error) {
         if (taskStateTimer !== undefined) {
           clearInterval(taskStateTimer);
         }
-        pageState.set(PageState.Plot);
+        if (t.state === TaskState.Finished) {
+          pageState.set(PageState.Plot);
 
-        dataPromise = fetch(`/data?id=${taskId}`).then((r) => r.json());
+          dataPromise = fetch(`/data?id=${taskId}`).then((r) => r.json());
+        } else if (t.state === TaskState.Error) {
+          pageState.set(PageState.Error);
+        }
       }
     }, 1000);
   };
@@ -87,8 +91,8 @@
     <p>Pulling {imageUrl}</p>
   {:else if $pageState === PageState.Error}
     <p>
-      Error occurred while pulling the image{#if $activeTask !== undefined && $activeTask.error !== ""}, got
-        error: {$activeTask.error}{/if}
+      Error occurred while pulling the image{#if $activeTask !== undefined && $activeTask.error !== ""},
+        got error: {$activeTask.error}{/if}
     </p>
   {/if}
   <ImageInformation />
