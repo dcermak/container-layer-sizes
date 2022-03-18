@@ -92,7 +92,7 @@
               <td>{currentTask.image_info.Variant}</td>
             </tr>
           {/if}
-          {#if currentTask.pull_progress !== undefined && currentTask.pull_progress !== null}
+          {#if $pageState === PageState.Pulling && currentTask.pull_progress !== undefined && currentTask.pull_progress !== null}
             <tr>
               <td>Layers</td>
               <td>
