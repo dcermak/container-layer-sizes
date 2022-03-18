@@ -4,10 +4,14 @@
  * This interface is the equivalent of the Dir struct from `dir.go`.
  */
 export interface Dir {
-  dirname: string;
-  total_size: number;
-  files: { string: number } | {};
-  directories: { string: Dir } | {};
+  readonly dirname: string;
+  readonly total_size: number;
+  readonly files: { string: number } | {};
+  readonly directories: { string: Dir } | {};
+}
+
+export interface Layer extends Dir {
+  readonly CreatedBy: string;
 }
 
 interface IFsSize {

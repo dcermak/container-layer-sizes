@@ -26,6 +26,11 @@ import (
 	"github.com/containers/storage/pkg/reexec"
 	"github.com/containers/storage/pkg/unshare"
 
+	ispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/opencontainers/umoci"
+	"github.com/opencontainers/umoci/oci/cas/dir"
+	"github.com/opencontainers/umoci/oci/casext"
+
 	"github.com/docker/distribution/reference"
 	"github.com/google/uuid"
 	archiver "github.com/mholt/archiver/v4"
@@ -97,12 +102,17 @@ type Task struct {
 	/// Metadata of the container image
 	Metadata string `json:"metadata"`
 
+	Manifest Manifest `json:"manifest"`
+
 	/// the current progress for downloading the image as it would have been
 	/// created by `podman pull`
 	PullProgress map[string]LayerDownloadProgress `json:"pull_progress"`
 
 	///
 	ImageInfo *types.ImageInspectInfo `json:"image_info"`
+
+	/// The digest of this image in oci form
+	ImageDigest string
 
 	/// an error if any occurred
 	error error
@@ -308,6 +318,29 @@ func (t *Task) Process() {
 		return
 	}
 
+	history, err := ReadHistoryFromOciArchive(t.tempdir, t.tag)
+	if err != nil {
+		setError(err)
+		return
+	}
+	for digest, createdBy := range history {
+		d := strings.Split(digest, ":")
+		if len(d) != 2 || d[0] != "sha256" {
+			log.WithFields(
+				logrus.Fields{"digest": digest},
+			).Error("Umoci found an invalid digest")
+			continue
+		}
+		if layer, ok := layers[d[1]]; ok {
+			layer.CreatedBy = createdBy
+			layers[d[1]] = layer
+		} else {
+			log.WithFields(
+				logrus.Fields{"digest": digest},
+			).Error("Umoci found a digest that is not present in the extracted layers")
+		}
+	}
+
 	t.layers = &layers
 	t.State = TaskStateFinished
 }
@@ -465,7 +498,7 @@ func CalculateContainerLayerSizes(unpackedImageDest string, manifest Manifest) (
 			return nil, errors.New(fmt.Sprintf("invalid digest: %s", digest))
 		}
 
-		root := internal.MakeDir("/")
+		root := internal.NewLayer()
 
 		archivePath := filepath.Join(unpackedImageDest, "blobs", "sha256", digest[1])
 		f, err := os.Open(archivePath)
@@ -497,6 +530,45 @@ func CalculateContainerLayerSizes(unpackedImageDest string, manifest Manifest) (
 	}
 
 	return layers, nil
+}
+
+func ReadHistoryFromOciArchive(imagePath string, tagName string) (map[string]string, error) {
+	// this is mostly stolen from the umoci stat command
+	engine, err := dir.Open(imagePath)
+	if err != nil {
+		return nil, err
+	}
+	engineExt := casext.NewEngine(engine)
+	defer engine.Close()
+
+	manifestDescriptorPaths, err := engineExt.ResolveReference(backgroundContext, tagName)
+	if err != nil {
+		return nil, err
+	}
+	if len(manifestDescriptorPaths) == 0 {
+		return nil, errors.New(fmt.Sprintf("tag not found: %s", tagName))
+	}
+	if len(manifestDescriptorPaths) != 1 {
+		return nil, errors.New(fmt.Sprintf("tag is ambiguous: %s", tagName))
+	}
+	manifestDescriptor := manifestDescriptorPaths[0].Descriptor()
+
+	if manifestDescriptor.MediaType != ispec.MediaTypeImageManifest {
+		return nil, errors.New(fmt.Sprintf("descriptor does not point to ispec.MediaTypeImageManifest: not implemented: %s", manifestDescriptor.MediaType))
+	}
+
+	ms, err := umoci.Stat(backgroundContext, engineExt, manifestDescriptor)
+	if err != nil {
+		return nil, err
+	}
+
+	res := make(map[string]string, len(ms.History))
+	for _, histEntry := range ms.History {
+		if histEntry.Layer != nil {
+			res[string(histEntry.Layer.Digest)] = histEntry.CreatedBy
+		}
+	}
+	return res, nil
 }
 
 func main() {
