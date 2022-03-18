@@ -2,6 +2,7 @@
   import ImageInformation from "./ImageInformation.svelte";
   import Plot from "./Plot.svelte";
   import { DataRouteReply, PageState, Task, TaskState } from "./types";
+  import Storage from "./Storage.svelte";
   import { pageState, activeTask } from "./stores";
   import { onDestroy } from "svelte";
 
@@ -88,7 +89,7 @@
     {/if}
   </div>
   {#if $pageState === PageState.Pulling}
-    <p>Pulling {imageUrl}</p>
+    <p>Pulling and analyzing {imageUrl}</p>
   {:else if $pageState === PageState.Error}
     <p>
       Error occurred while pulling the image{#if $activeTask !== undefined && $activeTask.error !== ""},
@@ -96,11 +97,12 @@
     </p>
   {/if}
   <ImageInformation />
-  {#if dataPromise !== undefined && $pageState === PageState.Plot}
+    {#if dataPromise !== undefined && $pageState === PageState.Plot}
     {#await dataPromise}
       <p>Fetching data...</p>
     {:then data}
       <Plot {data} />
+      <Storage {data} />
     {:catch err}
       <p>Failed to retrieve the plot data: {err.message}</p>{/await}
   {/if}
