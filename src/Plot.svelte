@@ -3,15 +3,23 @@
   import * as Plotly from "plotly.js";
   import type { DataRouteReply } from "./types";
   import { Dir, FsSize } from "./fs-tree";
+  import { formatByte } from "./util";
 
   export let data: DataRouteReply | undefined = undefined;
 
   let layers: string[] = [];
+  let showCreatedBy: boolean = true;
+  let trimDigestTo: number = -1;
+
+  const trimString = (s: string, trimTo: number) =>
+    trimTo === -1 ? s : s.slice(0, trimTo);
   let plotDiv: HTMLElement | undefined = undefined;
   let digest: string;
 
   let drawPlotPromise: Promise<Plotly.PlotlyHTMLElement> | undefined =
     undefined;
+
+  const config = { responsive: true };
 
   const layout = {
     margin: { l: 0, r: 0, b: 0, t: 0 }
@@ -27,6 +35,11 @@
   $: if (data !== undefined) {
     layers = Object.keys(data);
   }
+
+  const printLayerSize = (layerDigest: string) =>
+    formatByte(data[layerDigest as keyof DataRouteReply].total_size);
+  const printCreatedBy = (layerDigest: string) =>
+    data[layerDigest as keyof DataRouteReply].CreatedBy;
 
   const drawPlot = () => {
     drawPlotPromise = (() => {
@@ -45,7 +58,8 @@
             branchvalues: "total"
           } as Partial<Plotly.PlotData>
         ],
-        layout
+        layout,
+        config
       );
     })();
   };
@@ -54,11 +68,50 @@
 {#if data !== undefined}
   <div id="plot_config">
     Select the layer to visualize:
-    <select bind:value={digest}>
-      {#each layers as layer}
-        <option value={layer}>{layer}</option>
-      {/each}
-    </select>
+    <details>
+      <summary>Configure the table display</summary>
+      <input
+        type="checkbox"
+        bind:checked={showCreatedBy}
+        name="showCreatedBy"
+      />
+      <label for="showCreatedBy">Show Created By Column</label>
+      <br />
+      <label for="trimDigestTo">Trim the digest to: </label>
+      <input type="number" bind:value={trimDigestTo} name="trimDigestTo" />
+    </details>
+    <form>
+      <table>
+        <thead>
+          <tr>
+            <td>layer</td>
+            <td>total size</td>
+            {#if showCreatedBy}
+              <td>created by</td>
+            {/if}
+          </tr>
+        </thead>
+        {#each layers as layer}
+          <tr>
+            <td>
+              <label>
+                <input
+                  type="radio"
+                  bind:group={digest}
+                  value={layer}
+                  name="layer"
+                />
+                {trimString(layer, trimDigestTo)}
+              </label>
+            </td>
+            <td>{printLayerSize(layer)}</td>
+            {#if showCreatedBy}
+              <td>{printCreatedBy(layer)}</td>
+            {/if}
+          </tr>
+        {/each}
+      </table>
+    </form>
     <button on:click={drawPlot}>Plot this layer</button>
   </div>
 
