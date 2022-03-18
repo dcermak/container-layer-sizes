@@ -259,7 +259,7 @@ func (t *Task) Process() {
 				"local reference":  t.localReference.StringWithinTransport(),
 			},
 		).Trace("Not pulling image into local storage, as it is already present locally")
-	} else if err := PullImageToLocalStorage(t.remoteReference, t.localReference, t.ctx, &opts); err != nil {
+	} else if _, err := CopyImage(t.remoteReference, t.localReference, &t.ctx, &opts); err != nil {
 		if ctxErr := t.ctx.Err(); ctxErr == context.Canceled {
 			log.WithFields(
 				logrus.Fields{"error": err, "context_error": ctxErr, "task": t},
@@ -281,7 +281,7 @@ func (t *Task) Process() {
 	}
 
 	t.State = TaskStateExtracting
-	m, err := CopyImageAsOciIntoDest(t.localReference, t.tempdir)
+	m, err := CopyImage(t.localReference, t.ociLocalReference, &t.ctx, nil)
 	if err != nil {
 		setError(err)
 		return
@@ -400,77 +400,41 @@ func InspectRemoteImage(ref types.ImageReference, ctx context.Context) (info *ty
 	return img.Inspect(ctx)
 }
 
-/// Effectively just `podman pull $image`
-func PullImageToLocalStorage(remoteRef types.ImageReference, localRef types.ImageReference, ctx context.Context, opts *copy.Options) error {
+/// Copies an image from the source reference to the destination indicated by destRef.
+///
+/// If `ctx` is non-nil, then it is used for the actual copy process.
+/// If it is nil, then the backgroundContext is used instead.
+///
+/// `opts` are forwarded to the call of `copy.Image`
+func CopyImage(sourceRef types.ImageReference, destRef types.ImageReference, ctx *context.Context, opts *copy.Options) ([]byte, error) {
 	log.WithFields(
 		logrus.Fields{
-			"remote reference": remoteRef.StringWithinTransport(),
-			"local reference":  localRef.StringWithinTransport(),
+			"source reference":      sourceRef.StringWithinTransport(),
+			"destination reference": destRef.StringWithinTransport(),
 		},
-	).Info("Pulling an image into the local storage")
+	).Info("Copying an image")
 
 	policy, err := signature.DefaultPolicy(nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	policyCtx, err := signature.NewPolicyContext(policy)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer policyCtx.Destroy()
 
-	if _, err := copy.Image(ctx, policyCtx, localRef, remoteRef, opts); err != nil {
-		return err
+	var c context.Context
+	if ctx != nil {
+		c = *ctx
+	} else {
+		c = backgroundContext
 	}
-	return nil
-}
-
-func CopyImageAsOciIntoDest(ref types.ImageReference, dest string) ([]byte, error) {
-	log.WithFields(
-		logrus.Fields{
-			"local reference": ref.StringWithinTransport(),
-			"destination":     dest,
-		}).Info("Copying image into the destination folder")
-
-	ctx := context.Background()
-	img, err := ref.NewImage(ctx, nil)
-	if err != nil {
+	if manifest, err := copy.Image(c, policyCtx, destRef, sourceRef, opts); err != nil {
 		return nil, err
+	} else {
+		return manifest, nil
 	}
-	defer img.Close()
-
-	nameAndTag := strings.Split(ref.DockerReference().Name(), ":")
-	tag := "latest"
-	if len(nameAndTag) == 0 || len(nameAndTag) > 2 {
-		return nil, errors.New(
-			fmt.Sprintf(
-				"Invalid image name: %s",
-				ref.DockerReference().Name(),
-			),
-		)
-	} else if len(nameAndTag) == 2 {
-		tag = nameAndTag[1]
-	}
-
-	destRef, err := layout.Transport.ParseReference(dest + ":" + tag)
-	if err != nil {
-		return nil, err
-	}
-
-	policy, err := signature.DefaultPolicy(nil)
-	if err != nil {
-		return nil, err
-	}
-	policyCtx, err := signature.NewPolicyContext(policy)
-	if err != nil {
-		return nil, err
-	}
-
-	manifest, err := copy.Image(ctx, policyCtx, destRef, ref, &copy.Options{RemoveSignatures: true})
-	if err != nil {
-		return nil, err
-	}
-	return manifest, nil
 }
 
 func ReadOciImageMetadata(unpackedImageDest string, manifest Manifest) ([]byte, error) {
