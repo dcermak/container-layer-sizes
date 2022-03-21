@@ -29,17 +29,17 @@
 
   const saveHistory = async () => {
     let existingHistory: ImageHistory | NewImageHistory | undefined = undefined;
-    const imgName = $activeTask.image;
+    const imgName = $activeTask.Image.Image;
     try {
       existingHistory = await (await fetch(`${addr}?name=${imgName}`)).json();
     } catch {}
 
-    const currentEntryKey = $activeTask.ImageDigest as keyof HistoryT;
+    const currentEntryKey = $activeTask.Image.ImageDigest as keyof HistoryT;
     let newHistEntry: any = {};
     newHistEntry[currentEntryKey] = {
-      tags: [],
+      tags: $activeTask.Image.Tag === "" ? [] : [$activeTask.Image.Tag],
       contents: data,
-      inspect_info: $activeTask.ImageInfo
+      inspect_info: $activeTask.Image.ImageInfo
     };
 
     let entries: HistoryT = {
@@ -69,7 +69,7 @@
 </script>
 
 <main>
-  {#if $activeTask !== undefined && $activeTask.ImageInfo !== undefined && $pageState === PageState.Plot}
+  {#if $activeTask !== undefined && $activeTask.Image.ImageInfo !== undefined && $pageState === PageState.Plot}
     <button on:click={saveHistory}
       >Save the history of this image in the backend</button
     >

@@ -70,12 +70,14 @@
     Select the layer to visualize:
     <details>
       <summary>Configure the table display</summary>
-      <input
-        type="checkbox"
-        bind:checked={showCreatedBy}
-        name="showCreatedBy"
-      />
-      <label for="showCreatedBy">Show Created By Column</label>
+      <label>
+        <input
+          type="checkbox"
+          bind:checked={showCreatedBy}
+          name="showCreatedBy"
+        />
+        Show Created By Column
+      </label>
       <br />
       <label for="trimDigestTo">Trim the digest to: </label>
       <input type="number" bind:value={trimDigestTo} name="trimDigestTo" />

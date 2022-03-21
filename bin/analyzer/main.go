@@ -91,18 +91,17 @@ type LayerDownloadProgress struct {
 	Downloaded uint64 `json:"downloaded"`
 }
 
-type Task struct {
-	/// URL or otherwise fully qualified name of this container image
-	Image string `json:"image"`
+type ContainerImage struct {
+	/// URL or otherwise fully qualified name of this container image,
+	/// excluding the tag
+	Image string
 
-	/// Current state of this task, can be converted to a string via `TaskStateToStr`
-	State TaskState `json:"state"`
+	/// The tag via which this image was fetched
+	Tag string
 
-	Manifest Manifest `json:"manifest"`
+	Transport string
 
-	/// the current progress for downloading the image as it would have been
-	/// created by `podman pull`
-	PullProgress map[string]LayerDownloadProgress `json:"pull_progress"`
+	Manifest Manifest
 
 	///
 	ImageInfo *types.ImageInspectInfo
@@ -110,14 +109,7 @@ type Task struct {
 	/// The digest of this image in oci form
 	ImageDigest string
 
-	/// an error if any occurred
-	error error
-
 	layers *internal.LayerSizes
-
-	tempdir string
-
-	tag string
 
 	// the reference to the "remote" image (usually this is expected to
 	// exist on a registry, but it can actually be a local one as well ;-))
@@ -127,6 +119,23 @@ type Task struct {
 	localReference types.ImageReference
 
 	ociLocalReference types.ImageReference
+}
+
+type Task struct {
+	/// The image belonging to this task
+	Image ContainerImage
+
+	/// Current state of this task, can be converted to a string via `TaskStateToStr`
+	State TaskState `json:"state"`
+
+	/// the current progress for downloading the image as it would have been
+	/// created by `podman pull`
+	PullProgress map[string]LayerDownloadProgress `json:"pull_progress"`
+
+	/// an error if any occurred
+	error error
+
+	tempdir string
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -160,7 +169,10 @@ func NewTask(imageUrl string) (*Task, error) {
 	// the image url does not specify a transport => assume it's a url to a registry
 
 	parts := strings.Split(imageUrl, ":")
-	if t := alltransports.TransportFromImageName(imageUrl); t != nil {
+	transport := alltransports.TransportFromImageName(imageUrl)
+	transportName := ""
+	if transport != nil {
+		transportName = transport.Name()
 		// the image includes the transport so we just parse it from all transports
 		remoteReference, err = alltransports.ParseImageName(imageUrl)
 		if err != nil {
@@ -211,18 +223,24 @@ func NewTask(imageUrl string) (*Task, error) {
 	}
 
 	ctx, cancel := context.WithTimeout(backgroundContext, 5*time.Minute)
+
+	Image := ContainerImage{
+		Image:             urlWithoutTransport,
+		Tag:               tag,
+		Transport:         transportName,
+		layers:            &layers,
+		remoteReference:   remoteReference,
+		localReference:    localReference,
+		ociLocalReference: ociLocalReference,
+	}
+
 	return &Task{
-			Image:             imageUrl,
-			State:             TaskStateNew,
-			layers:            &layers,
-			tempdir:           tempdir,
-			error:             nil,
-			ctx:               ctx,
-			cancel:            cancel,
-			remoteReference:   remoteReference,
-			localReference:    localReference,
-			ociLocalReference: ociLocalReference,
-			tag:               tag,
+			Image:   Image,
+			State:   TaskStateNew,
+			tempdir: tempdir,
+			error:   nil,
+			ctx:     ctx,
+			cancel:  cancel,
 		},
 		nil
 }
@@ -241,14 +259,14 @@ func (t *Task) Process() {
 
 	t.State = TaskStatePulling
 
-	t.ImageInfo, err = InspectImage(t.remoteReference, t.ctx)
+	t.Image.ImageInfo, err = InspectImage(t.Image.remoteReference, t.ctx)
 	if err != nil {
 		setError(err)
 		return
 	}
 
-	t.PullProgress = make(map[string]LayerDownloadProgress, len(t.ImageInfo.Layers))
-	for _, layerDigest := range t.ImageInfo.Layers {
+	t.PullProgress = make(map[string]LayerDownloadProgress, len(t.Image.ImageInfo.Layers))
+	for _, layerDigest := range t.Image.ImageInfo.Layers {
 		t.PullProgress[layerDigest] = LayerDownloadProgress{TotalSize: int64(-1), Downloaded: 0}
 	}
 
@@ -286,14 +304,14 @@ func (t *Task) Process() {
 		}
 	}()
 
-	if t.remoteReference.Transport().Name() == t.localReference.Transport().Name() {
+	if t.Image.remoteReference.Transport().Name() == t.Image.localReference.Transport().Name() {
 		log.WithFields(
 			logrus.Fields{
-				"remote reference": t.remoteReference.StringWithinTransport(),
-				"local reference":  t.localReference.StringWithinTransport(),
+				"remote reference": t.Image.remoteReference.StringWithinTransport(),
+				"local reference":  t.Image.localReference.StringWithinTransport(),
 			},
 		).Trace("Not pulling image into local storage, as it is already present locally")
-	} else if _, err := CopyImage(t.remoteReference, t.localReference, &t.ctx, &opts); err != nil {
+	} else if _, err := CopyImage(t.Image.remoteReference, t.Image.localReference, &t.ctx, &opts); err != nil {
 		if ctxErr := t.ctx.Err(); ctxErr == context.Canceled {
 			log.WithFields(
 				logrus.Fields{"error": err, "context_error": ctxErr, "task": t},
@@ -315,7 +333,7 @@ func (t *Task) Process() {
 	}
 
 	t.State = TaskStateExtracting
-	m, err := CopyImage(t.localReference, t.ociLocalReference, &t.ctx, nil)
+	m, err := CopyImage(t.Image.localReference, t.Image.ociLocalReference, &t.ctx, nil)
 	if err != nil {
 		setError(err)
 		return
@@ -335,7 +353,7 @@ func (t *Task) Process() {
 		return
 	}
 
-	history, err := ReadHistoryFromOciArchive(t.tempdir, t.tag)
+	history, err := ReadHistoryFromOciArchive(t.tempdir, t.Image.Tag)
 	if err != nil {
 		setError(err)
 		return
@@ -358,7 +376,7 @@ func (t *Task) Process() {
 		}
 	}
 
-	t.layers = &layers
+	t.Image.layers = &layers
 	t.State = TaskStateFinished
 }
 
@@ -639,9 +657,9 @@ func main() {
 			return
 		}
 
-		if j, err := json.Marshal(t.layers); err != nil {
+		if j, err := json.Marshal(t.Image.layers); err != nil {
 			log.WithFields(logrus.Fields{
-				"layers": t.layers,
+				"layers": t.Image.layers,
 				"id":     id,
 				"state":  t.State,
 				"error":  err,

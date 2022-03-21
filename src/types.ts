@@ -36,13 +36,20 @@ export interface Manifest {
   readonly layers: readonly ExtractedDigest[];
 }
 
+export interface ContainerImage {
+  readonly Image: string;
+  readonly Tag: string;
+  readonly Transport: string;
+  readonly Manifest: Manifest;
+  readonly ImageDigest: string;
+  readonly ImageInfo: ImageInspectInfo | undefined | null;
+}
+
 export interface Task {
-  readonly image: string;
+  readonly Image: ContainerImage;
   readonly state: TaskState;
   readonly error: string;
   readonly pull_progress: PullProgress | undefined | null;
-  readonly ImageInfo: ImageInspectInfo | undefined | null;
-  readonly ImageDigest: string;
 }
 
 export interface DataRouteReply {
