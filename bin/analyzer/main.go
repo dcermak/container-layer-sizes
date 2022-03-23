@@ -17,6 +17,7 @@ import (
 
 	"github.com/containers/image/v5/copy"
 	"github.com/containers/image/v5/docker"
+	dockerArchiveTransport "github.com/containers/image/v5/docker/archive"
 	"github.com/containers/image/v5/image"
 	"github.com/containers/image/v5/oci/layout"
 	"github.com/containers/image/v5/signature"
@@ -46,6 +47,22 @@ var neededCapabilities = []capability.Cap{
 	capability.CAP_FSETID,
 	capability.CAP_MKNOD,
 	capability.CAP_SETFCAP,
+}
+
+func reexecForRootlessStorage() error {
+	reexec.Init()
+
+	capabilities, err := capability.NewPid(0)
+	if err != nil {
+		return err
+	}
+	for _, cap := range neededCapabilities {
+		if !capabilities.Get(capability.EFFECTIVE, cap) {
+			// We miss a capability we need, create a user namespaces
+			unshare.MaybeReexecUsingUserNamespace(true)
+		}
+	}
+	return nil
 }
 
 const (
@@ -156,7 +173,21 @@ func (t *Task) MarshalJSON() ([]byte, error) {
 	}{Error: errMsg, Alias: (*Alias)(t)})
 }
 
-func NewTask(imageUrl string) (*Task, error) {
+func getNameTagFromUrl(u string) (name string, tag string, err error) {
+	nameAndTag := strings.Split(u, ":")
+
+	if len(nameAndTag) == 0 || len(nameAndTag) > 2 {
+		return "", "", errors.New(
+			fmt.Sprintf("Invalid image name: %s", u),
+		)
+	} else if len(nameAndTag) == 2 {
+		return nameAndTag[0], nameAndTag[1], nil
+	} else {
+		return u, "", nil
+	}
+}
+
+func NewTask(imageUrl string, imageName string) (*Task, error) {
 	tempdir, err := ioutil.TempDir("", "")
 	if err != nil {
 		return nil, err
@@ -171,24 +202,78 @@ func NewTask(imageUrl string) (*Task, error) {
 	parts := strings.Split(imageUrl, ":")
 	transport := alltransports.TransportFromImageName(imageUrl)
 	transportName := ""
+	tag := ""
+
 	if transport != nil {
 		transportName = transport.Name()
-		// the image includes the transport so we just parse it from all transports
+
+		// drop the transport from the url
+		urlWithoutTransport = strings.Join(parts[1:], ":")
+
 		remoteReference, err = alltransports.ParseImageName(imageUrl)
 		if err != nil {
 			return nil, err
 		}
 
-		// but for the local storage we have to omit the transport part,
-		// as ParseReference must not be called on an url with the
-		// transport
-		urlWithoutTransport = strings.Join(parts[1:], ":")
+		if transportName != "docker" {
+			if imageName == "" {
+				if transportName == "docker-archive" {
+					sys := types.SystemContext{}
+					archivePath := strings.Join(parts[1:], ":")
+					r, err := dockerArchiveTransport.NewReader(&sys, archivePath)
+					if err != nil {
+						return nil, err
+					}
+					refs, err := r.List()
+					if err != nil {
+						return nil, err
+					}
+					if len(refs) > 0 {
+						// the stringwithinTransport is for some reason prepended with the archive's path plus a colon…
+						// we remove it, if it is there
+						imageName = refs[0][0].StringWithinTransport()
+						imageName = strings.Replace(imageName, archivePath+":", "", 1)
+					}
+				}
+				if imageName == "" {
+					return nil, errors.New("A image that is not using the docker transport must be supplied with an image name")
+				}
+			}
+			// we now need to do some fiddling with the tags:
+			// imageName might not include the tag, but imageUrl might
+			// => if imageName has a tag => use it
+			// => if imageName has no tag => take the one from imageUrl
+			var name string
+			name, tag, err = getNameTagFromUrl(imageName)
+			if err != nil {
+				return nil, err
+			}
+
+			if tag == "" {
+				_, tag, err = getNameTagFromUrl(urlWithoutTransport)
+				if err != nil {
+					return nil, err
+				}
+			}
+
+			if tag == "" {
+				tag = "latest"
+			}
+
+			urlWithoutTransport = name
+		} else {
+			// docker transport urls contain // after `docker:`, drop that one as well
+			if urlWithoutTransport[:2] == "//" {
+				urlWithoutTransport = urlWithoutTransport[2:]
+			}
+		}
+
 		localReference, err = storage.Transport.ParseReference(urlWithoutTransport)
 		if err != nil {
 			return nil, err
 		}
-
 	} else {
+		transportName = "docker"
 		ref, err := reference.ParseNormalizedNamed(imageUrl)
 		if err != nil {
 			return nil, err
@@ -203,18 +288,15 @@ func NewTask(imageUrl string) (*Task, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		urlWithoutTransport, tag, err = getNameTagFromUrl(urlWithoutTransport)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	nameAndTag := strings.Split(urlWithoutTransport, ":")
-	tag := "latest"
-	if len(nameAndTag) == 0 || len(nameAndTag) > 2 {
-		return nil, errors.New(
-			fmt.Sprintf(
-				"Invalid image name: %s", urlWithoutTransport,
-			),
-		)
-	} else if len(nameAndTag) == 2 {
-		tag = nameAndTag[1]
+	if tag == "" {
+		tag = "latest"
 	}
 
 	ociLocalReference, err := layout.Transport.ParseReference(tempdir + ":" + tag)
@@ -259,10 +341,12 @@ func (t *Task) Process() {
 
 	t.State = TaskStatePulling
 
-	t.Image.ImageInfo, err = InspectImage(t.Image.remoteReference, t.ctx)
-	if err != nil {
-		setError(err)
-		return
+	if t.Image.ImageInfo == nil {
+		t.Image.ImageInfo, err = InspectImage(t.Image.remoteReference, t.ctx)
+		if err != nil {
+			setError(err)
+			return
+		}
 	}
 
 	t.PullProgress = make(map[string]LayerDownloadProgress, len(t.Image.ImageInfo.Layers))
@@ -403,10 +487,10 @@ func (tq *TaskQueue) CleanupQueue() []error {
 	return errors
 }
 
-func (tq *TaskQueue) AddTask(imageUrl string) (string, *Task, error) {
+func (tq *TaskQueue) AddTask(imageUrl, imageName string) (string, *Task, error) {
 	id := fmt.Sprint(uuid.New())
 
-	if t, err := NewTask(imageUrl); err != nil {
+	if t, err := NewTask(imageUrl, imageName); err != nil {
 		return "", nil, err
 	} else {
 		tq.tasks[id] = t
@@ -445,9 +529,7 @@ type Manifest struct {
 	Layers        []ExtractedDigest `json:"layers"`
 }
 
-func InspectImage(ref types.ImageReference, ctx context.Context) (info *types.ImageInspectInfo, err error) {
-	err = nil
-	info = nil
+func InspectImage(ref types.ImageReference, ctx context.Context) (*types.ImageInspectInfo, error) {
 	sys := types.SystemContext{}
 
 	log.WithFields(
@@ -456,14 +538,14 @@ func InspectImage(ref types.ImageReference, ctx context.Context) (info *types.Im
 
 	imgSrc, err := ref.NewImageSource(ctx, &sys)
 	if err != nil {
-		return
+		return nil, err
 	}
 	defer imgSrc.Close()
 
 	img, err := image.FromUnparsedImage(ctx, nil, image.UnparsedInstance(imgSrc, nil))
 	if err != nil {
 		log.Trace("Failed to generate a new image from an unparsed image")
-		return
+		return nil, err
 	}
 	return img.Inspect(ctx)
 }
@@ -602,17 +684,9 @@ func main() {
 	}
 
 	if rootless {
-		reexec.Init()
-
-		capabilities, err := capability.NewPid(0)
+		err := reexecForRootlessStorage()
 		if err != nil {
 			panic(err)
-		}
-		for _, cap := range neededCapabilities {
-			if !capabilities.Get(capability.EFFECTIVE, cap) {
-				// We miss a capability we need, create a user namespaces
-				unshare.MaybeReexecUsingUserNamespace(true)
-			}
 		}
 	}
 
@@ -681,12 +755,13 @@ func main() {
 		switch r.Method {
 		case "POST":
 			img := r.PostFormValue("image")
+			imgName := r.PostFormValue("name")
 			if img == "" {
 				http.Error(w, "No image provided", 400)
 				return
 			}
 
-			if id, t, err := tq.AddTask(img); err != nil {
+			if id, t, err := tq.AddTask(img, imgName); err != nil {
 				http.Error(w, fmt.Sprintf("Error creating task: %s", err), 400)
 			} else {
 				jobs <- t

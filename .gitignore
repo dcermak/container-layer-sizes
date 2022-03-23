@@ -11,3 +11,4 @@ dist/bundle.js.LICENSE.txt
 /public/build/
 /public/src/
 /public/tsconfig.tsbuildinfo
+/*.out
