@@ -234,7 +234,16 @@ func NewTask(imageUrl string, imageName string) (*Task, error) {
 						imageName = refs[0][0].StringWithinTransport()
 						imageName = strings.Replace(imageName, archivePath+":", "", 1)
 					}
+				} else if transportName == "containers-storage" {
+					localRef, err := alltransports.ParseImageName(imageUrl)
+					if err != nil {
+						return nil, err
+					}
+					if dockerRef := localRef.DockerReference(); dockerRef != nil {
+						imageName = dockerRef.Name()
+					}
 				}
+
 				if imageName == "" {
 					return nil, errors.New("A image that is not using the docker transport must be supplied with an image name")
 				}
