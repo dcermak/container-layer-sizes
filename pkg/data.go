@@ -30,13 +30,17 @@ type ImageHistoryEntry struct {
 	InspectInfo types.ImageInspectInfo `json:"inspect_info"`
 }
 
-/// The full image history.
-type ImageHistory struct {
+type ImageEntry struct {
 	// database primary key
 	ID int64
 
 	/// The name of this image
-	Name string `json:"name"`
+	Name string
+}
+
+/// The full image history.
+type ImageHistory struct {
+	ImageEntry
 
 	/// map of the container hashes and the corresponding entry
 	History map[string]ImageHistoryEntry

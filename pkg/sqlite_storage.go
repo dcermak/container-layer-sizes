@@ -353,3 +353,26 @@ func (s *SQLiteBackend) ReadById(imageId int64) (*ImageHistory, error) {
 		return &entry, nil
 	}
 }
+
+func (s *SQLiteBackend) ReadAll() ([]ImageEntry, error) {
+	rows, err := s.con.Query("SELECT * FROM image")
+	if err != nil {
+		return nil, err
+	}
+
+	res := make([]ImageEntry, 0)
+
+	for rows.Next() {
+		entry := ImageEntry{}
+
+		if err = rows.Scan(&entry.ID, &entry.Name); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, ErrNonExistent
+			}
+			return nil, err
+		}
+		res = append(res, entry)
+	}
+
+	return res, nil
+}

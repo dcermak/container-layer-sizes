@@ -120,3 +120,32 @@ func TestUpdate(t *testing.T) {
 	h2, err := s.ReadById(h.ID)
 	assert.Equal(t, h, h2, "written and updated ImageHistory do not match")
 }
+
+func TestReadAll(t *testing.T) {
+	h1 := &ImageHistory{History: map[string]ImageHistoryEntry{"bar": entryOne, "baz": entryTwo}}
+	h1.Name = "testEntry"
+	h1, err := s.Create(h1)
+	require.NoError(t, err)
+
+	h2 := &ImageHistory{}
+	h2.Name = "second_test_entry"
+	h2, err = s.Create(h2)
+	require.NoError(t, err)
+
+	allEntries, err := s.ReadAll()
+	require.NoError(t, err)
+
+	assert.GreaterOrEqual(t, len(allEntries), 2)
+
+	findEntry := func(entry ImageHistory) bool {
+		for _, e := range allEntries {
+			if e.ID == entry.ID && e.Name == entry.Name {
+				return true
+			}
+		}
+		return false
+	}
+
+	assert.Truef(t, findEntry(*h1), "Expected to find the entry h1 in the database")
+	assert.Truef(t, findEntry(*h2), "Expected to find the entry h2 in the database")
+}

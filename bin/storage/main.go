@@ -35,7 +35,7 @@ func backend(s *internal.SQLiteBackend) func(w http.ResponseWriter, r *http.Requ
 			name := r.FormValue("name")
 			id := r.FormValue("id")
 
-			if (name == "" && id == "") || (name != "" && id != "") {
+			if name != "" && id != "" {
 				http.Error(
 					w,
 					"Either the parameter id or name must be present",
@@ -99,6 +99,16 @@ func backend(s *internal.SQLiteBackend) func(w http.ResponseWriter, r *http.Requ
 				}
 				if len(res) == 0 {
 					http.Error(w, fmt.Sprintf("No image history found with the name %s", name), http.StatusNotFound)
+					return
+				}
+				payload = res
+			} else {
+				res, err := s.ReadAll()
+				if err != nil {
+					http.Error(w,
+						fmt.Sprintf("Error reading all images: %s", err),
+						http.StatusInternalServerError,
+					)
 					return
 				}
 				payload = res
