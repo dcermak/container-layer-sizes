@@ -417,7 +417,12 @@ func (t *Task) Process() {
 	}
 
 	t.State = TaskStateExtracting
-	m, err := CopyImage(t.Image.localReference, t.Image.ociLocalReference, &t.ctx, nil)
+	m, err := CopyImage(
+		t.Image.localReference,
+		t.Image.ociLocalReference,
+		&t.ctx,
+		&copy.Options{RemoveSignatures: true},
+	)
 	if err != nil {
 		setError(err)
 		return
