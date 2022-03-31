@@ -18,14 +18,14 @@ func TestMain(m *testing.M) {
 
 	layerOne := "asdf"
 	layerTwo := "uiae"
-	d := MakeDir("/")
-	d.InsertIntoDir("/etc/os-release", 128)
+	l := NewLayer()
+	l.InsertIntoDir("/etc/os-release", 128)
 	entryOne = ImageHistoryEntry{
 		id:   0,
 		Tags: []string{"latest", "1.0"},
-		Contents: map[string]Dir{
-			layerOne: Dir{},
-			layerTwo: d,
+		Contents: map[string]Layer{
+			"layerOne": NewLayer(),
+			"layerTwo": l,
 		},
 		InspectInfo: types.ImageInspectInfo{
 			DockerVersion: "1.22",
@@ -61,18 +61,19 @@ func TestMain(m *testing.M) {
 }
 
 func TestSimpleCreate(t *testing.T) {
-	h := &ImageHistory{Name: "foobar"}
+	h := &ImageHistory{}
+	h.Name = "foobar"
 
 	h2, err := s.Create(h)
 	require.Nilf(t, err, "Failed to create empty image history, got %s", err)
 
 	assert.GreaterOrEqualf(t, h2.ID, int64(1), "Created image history got an invalid id %d", h2.ID)
 	assert.Equalf(t, h2.Name, h.Name, "Created ImageHistory has a different name, expected %s, but got %s", h.Name, h2.Name)
-
 }
 
 func TestSimpleRead(t *testing.T) {
-	h := &ImageHistory{Name: "test"}
+	h := &ImageHistory{}
+	h.Name = "test"
 	_, err := s.Create(h)
 	require.Nilf(t, err, "Failed to create image history entry with name %s, got %s", h.Name, err)
 
@@ -88,12 +89,12 @@ func TestSimpleRead(t *testing.T) {
 
 func TestComplexRead(t *testing.T) {
 	h := &ImageHistory{
-		Name: "complexImage",
 		History: map[string]ImageHistoryEntry{
 			"foobar": entryOne,
 			"bazBar": entryTwo,
 		},
 	}
+	h.Name = "complexImage"
 
 	h, err := s.Create(h)
 	require.Nilf(t, err, "Could not insert %v into the database, got %s", h, err)
@@ -107,7 +108,8 @@ func TestComplexRead(t *testing.T) {
 }
 
 func TestUpdate(t *testing.T) {
-	h := &ImageHistory{Name: "notYetComplex", History: map[string]ImageHistoryEntry{}}
+	h := &ImageHistory{History: map[string]ImageHistoryEntry{}}
+	h.Name = "notYetComplex"
 
 	h, err := s.Create(h)
 	require.Nilf(t, err, "Could not insert %v into the database, got %s", h, err)
