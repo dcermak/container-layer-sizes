@@ -19,7 +19,7 @@ export interface Layer extends Dir {
 export function dirToDataNode(dir: Dir): Node {
   let d = {
     name: dir.dirname,
-    value: dir.total_size,
+    value: 0,
     children: [] as Node[]
   };
 
