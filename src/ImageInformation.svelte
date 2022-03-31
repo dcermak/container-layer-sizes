@@ -3,6 +3,7 @@
   import type { PullProgress, Task } from "./types";
   import { PageState } from "./types";
   import { onDestroy } from "svelte";
+  import { formatByte } from "./util";
 
   let currentTask: Task | undefined = undefined;
 
@@ -21,33 +22,13 @@
       return "starting...";
     }
 
-    let prefix = Math.floor(Math.log2(prog.total_size) / 10);
-    let unitName = new Map([
-      [0, "Byte"],
-      [1, "KiB"],
-      [2, "MiB"],
-      [3, "GiB"],
-      [4, "TiB"]
-    ]).get(prefix);
-
-    if (unitName === undefined) {
-      // this should never happen…
-      prefix = 4;
-      unitName = "TiB";
-    }
-    const unitValue = 2 ** (10 * prefix);
-
     if (prog.total_size === prog.downloaded) {
-      return `downloaded ${(prog.total_size / unitValue).toFixed(
-        2
-      )} ${unitName}`;
+      return `downloaded ${formatByte(prog.total_size)}`;
     }
 
-    return `downloading... ${(prog.downloaded / unitValue).toFixed(
-      2
-    )} ${unitName} of ${(prog.total_size / unitValue).toFixed(
-      2
-    )} ${unitName} done`;
+    return `downloading... ${formatByte(prog.downloaded)} of ${formatByte(
+      prog.total_size
+    )} done`;
   };
 </script>
 
