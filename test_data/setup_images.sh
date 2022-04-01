@@ -2,6 +2,10 @@
 
 set -euox pipefail
 
+podman pull docker.io/library/alpine
+podman pull docker.io/library/alpine:edge
+podman pull docker.io/library/alpine:3.15
+
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 pushd ${SCRIPT_DIR}

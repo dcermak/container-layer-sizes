@@ -1,4 +1,4 @@
-FROM docker.io/library/busybox as builder
+FROM docker.io/library/alpine as builder
 
 RUN mkdir -p /data/subdir
 RUN for i in $(seq 100); do dd if=/dev/zero of=/data/$i count=$i; done
