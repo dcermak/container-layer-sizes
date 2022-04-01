@@ -280,6 +280,12 @@ func (s *SQLiteBackend) Update(imageHistory *ImageHistory) (*ImageHistory, error
 				return nil, err
 			}
 		} else {
+			// newEntry can have id = 0 which is invalid and results in an error
+			// this happens if the new entry got modified,
+			// but requester did not know the database id
+			if newEntry.id == 0 {
+				newEntry.id = oldEntry.id
+			}
 			updatedEntry, err := s.updateImageHistoryEntry(imageHistory.ID, hash, &newEntry)
 			if err != nil {
 				tx.Rollback()

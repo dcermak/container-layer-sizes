@@ -110,17 +110,25 @@ func TestComplexRead(t *testing.T) {
 func TestUpdate(t *testing.T) {
 	h := &ImageHistory{History: map[string]ImageHistoryEntry{}}
 	h.Name = "notYetComplex"
+	entryOneDigest := "asdfuiaeuiae"
 
 	h, err := s.Create(h)
 	require.Nilf(t, err, "Could not insert %v into the database, got %s", h, err)
 
-	h.History["asdfuiaeuiae"] = entryOne
+	h.History[entryOneDigest] = entryOne
 
 	h, err = s.Update(h)
-	require.Nilf(t, err, "Could not update %v in the database, got %s", h, err)
+	require.NoErrorf(t, err, "Could not update %v in the database", h)
 
 	h2, err := s.ReadById(h.ID)
 	assert.Equal(t, h, h2, "written and updated ImageHistory do not match")
+
+	h.History[entryOneDigest] = entryTwo
+	h, err = s.Update(h)
+	require.NoError(t, err)
+
+	h3, err := s.ReadById(h.ID)
+	assert.Equal(t, h, h3, "written and updated ImageHistory do not match")
 }
 
 func TestReadAll(t *testing.T) {
