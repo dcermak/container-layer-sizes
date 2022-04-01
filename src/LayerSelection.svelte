@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { DataRouteReply } from "./types";
+  import UniqueCheckbox from "./UniqueCheckbox.svelte";
   import { formatByte } from "./util";
 
   const printLayerSize = (layerDigest: string) =>
@@ -14,6 +15,10 @@
   export let showCreatedBy: boolean = true;
   export let trimDigestTo: number = -1;
   export let digest: string;
+
+  let digests: string[] = [];
+
+  $: digest = digests.length > 0 ? digests[0] : undefined;
 
   let layers: string[] = [];
   $: if (data !== undefined) {
@@ -34,10 +39,11 @@
   {#each layers as layer}
     <tr>
       <td>
-        <label>
-          <input type="radio" bind:group={digest} value={layer} name="layer" />
-          {trimString(layer, trimDigestTo)}
-        </label>
+        <UniqueCheckbox
+          bind:group={digests}
+          value={layer}
+          label={trimString(layer, trimDigestTo)}
+        />
       </td>
       <td>{printLayerSize(layer)}</td>
       {#if showCreatedBy}
