@@ -187,7 +187,7 @@ func getNameTagFromUrl(u string) (name string, tag string, err error) {
 	}
 }
 
-func NewTask(imageUrl string, imageName string) (*Task, error) {
+func NewTask(imageUrl string) (*Task, error) {
 	tempdir, err := ioutil.TempDir("", "")
 	if err != nil {
 		return nil, err
@@ -196,94 +196,29 @@ func NewTask(imageUrl string, imageName string) (*Task, error) {
 
 	var remoteReference, localReference types.ImageReference
 
-	urlWithoutTransport := imageUrl
-	// the image url does not specify a transport => assume it's a url to a registry
-
 	parts := strings.Split(imageUrl, ":")
-	transport := alltransports.TransportFromImageName(imageUrl)
+
 	transportName := ""
 	tag := ""
 
-	if transport != nil {
-		transportName = transport.Name()
+	// drop the transport from the url
+	urlWithoutTransport := strings.Join(parts[1:], ":")
 
-		// drop the transport from the url
-		urlWithoutTransport = strings.Join(parts[1:], ":")
-
-		remoteReference, err = alltransports.ParseImageName(imageUrl)
-		if err != nil {
-			return nil, err
-		}
-
-		if transportName != "docker" {
-			if imageName == "" {
-				if transportName == "docker-archive" {
-					sys := types.SystemContext{}
-					archivePath := strings.Join(parts[1:], ":")
-					r, err := dockerArchiveTransport.NewReader(&sys, archivePath)
-					if err != nil {
-						return nil, err
-					}
-					refs, err := r.List()
-					if err != nil {
-						return nil, err
-					}
-					if len(refs) > 0 {
-						// the stringwithinTransport is for some reason prepended with the archive's path plus a colon…
-						// we remove it, if it is there
-						imageName = refs[0][0].StringWithinTransport()
-						imageName = strings.Replace(imageName, archivePath+":", "", 1)
-					}
-				} else if transportName == "containers-storage" {
-					localRef, err := alltransports.ParseImageName(imageUrl)
-					if err != nil {
-						return nil, err
-					}
-					if dockerRef := localRef.DockerReference(); dockerRef != nil {
-						imageName = dockerRef.Name()
-					}
-				}
-
-				if imageName == "" {
-					return nil, errors.New("A image that is not using the docker transport must be supplied with an image name")
-				}
-			}
-			// we now need to do some fiddling with the tags:
-			// imageName might not include the tag, but imageUrl might
-			// => if imageName has a tag => use it
-			// => if imageName has no tag => take the one from imageUrl
-			var name string
-			name, tag, err = getNameTagFromUrl(imageName)
-			if err != nil {
-				return nil, err
-			}
-
-			if tag == "" {
-				_, tag, err = getNameTagFromUrl(urlWithoutTransport)
-				if err != nil {
-					return nil, err
-				}
-			}
-
-			if tag == "" {
-				tag = "latest"
-			}
-
-			urlWithoutTransport = name
-		} else {
-			// docker transport urls contain // after `docker:`, drop that one as well
-			if urlWithoutTransport[:2] == "//" {
-				urlWithoutTransport = urlWithoutTransport[2:]
-			}
-		}
-
-		localReference, err = storage.Transport.ParseReference(urlWithoutTransport)
-		if err != nil {
-			return nil, err
-		}
+	remoteReference, err = alltransports.ParseImageName(imageUrl)
+	if err != nil {
+		return nil, err
+	}
+	if transport := remoteReference.Transport(); transport == nil {
+		return nil, errors.New(fmt.Sprintf("Image %s contains no valid transport", imageUrl))
 	} else {
-		transportName = "docker"
-		ref, err := reference.ParseNormalizedNamed(imageUrl)
+		transportName = transport.Name()
+	}
+
+	if transportName == "docker" {
+		// docker transport urls contain // after `docker:`, drop that one as well
+		urlWithoutTransport = urlWithoutTransport[2:]
+
+		ref, err := reference.ParseNormalizedNamed(urlWithoutTransport)
 		if err != nil {
 			return nil, err
 		}
@@ -293,7 +228,7 @@ func NewTask(imageUrl string, imageName string) (*Task, error) {
 			return nil, err
 		}
 
-		localReference, err = storage.Transport.ParseReference(imageUrl)
+		localReference, err = storage.Transport.ParseReference(urlWithoutTransport)
 		if err != nil {
 			return nil, err
 		}
@@ -302,6 +237,67 @@ func NewTask(imageUrl string, imageName string) (*Task, error) {
 		if err != nil {
 			return nil, err
 		}
+	} else {
+		imageName := ""
+
+		if transportName == "docker-archive" {
+			sys := types.SystemContext{}
+			archivePath := strings.Join(parts[1:], ":")
+			r, err := dockerArchiveTransport.NewReader(&sys, archivePath)
+			if err != nil {
+				return nil, err
+			}
+			refs, err := r.List()
+			if err != nil {
+				return nil, err
+			}
+			if len(refs) > 0 {
+				// the stringwithinTransport is for some reason prepended with the archive's path plus a colon…
+				// we remove it, if it is there
+				imageName = refs[0][0].StringWithinTransport()
+				imageName = strings.Replace(imageName, archivePath+":", "", 1)
+			}
+		} else if transportName == "containers-storage" {
+			localRef, err := alltransports.ParseImageName(imageUrl)
+			if err != nil {
+				return nil, err
+			}
+			if dockerRef := localRef.DockerReference(); dockerRef != nil {
+				imageName = dockerRef.Name()
+			}
+		}
+		if imageName == "" {
+			return nil, errors.New(
+				fmt.Sprintf(
+					"Could not infer the name of the image with the url %s",
+					imageUrl,
+				),
+			)
+		}
+
+		// we now need to do some fiddling with the tags:
+		// imageName might not include the tag, but imageUrl might
+		// => if imageName has a tag => use it
+		// => if imageName has no tag => take the one from imageUrl
+		var name string
+		name, tag, err = getNameTagFromUrl(imageName)
+		if err != nil {
+			return nil, err
+		}
+
+		if tag == "" {
+			_, tag, err = getNameTagFromUrl(urlWithoutTransport)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		urlWithoutTransport = name
+	}
+
+	localReference, err = storage.Transport.ParseReference(urlWithoutTransport)
+	if err != nil {
+		return nil, err
 	}
 
 	if tag == "" {
@@ -443,6 +439,7 @@ func (t *Task) Process() {
 		setError(err)
 		return
 	}
+	t.Image.ImageDigest = manifest.Config.Digest
 
 	t.State = TaskStateAnalyzing
 	layers, err := CalculateContainerLayerSizes(t.tempdir, manifest)
@@ -501,10 +498,10 @@ func (tq *TaskQueue) CleanupQueue() []error {
 	return errors
 }
 
-func (tq *TaskQueue) AddTask(imageUrl, imageName string) (string, *Task, error) {
+func (tq *TaskQueue) AddTask(imageUrl string) (string, *Task, error) {
 	id := fmt.Sprint(uuid.New())
 
-	if t, err := NewTask(imageUrl, imageName); err != nil {
+	if t, err := NewTask(imageUrl); err != nil {
 		return "", nil, err
 	} else {
 		tq.tasks[id] = t
@@ -769,13 +766,12 @@ func main() {
 		switch r.Method {
 		case "POST":
 			img := r.PostFormValue("image")
-			imgName := r.PostFormValue("name")
 			if img == "" {
 				http.Error(w, "No image provided", 400)
 				return
 			}
 
-			if id, t, err := tq.AddTask(img, imgName); err != nil {
+			if id, t, err := tq.AddTask(img); err != nil {
 				http.Error(w, fmt.Sprintf("Error creating task: %s", err), 400)
 			} else {
 				jobs <- t
