@@ -25,9 +25,9 @@ type ImageHistoryEntry struct {
 	// database primary key
 	id int64
 
-	Tags        []string               `json:"tags"`
-	Contents    LayerSizes             `json:"contents"`
-	InspectInfo types.ImageInspectInfo `json:"inspect_info"`
+	Tags        []string
+	Contents    LayerSizes
+	InspectInfo types.ImageInspectInfo
 }
 
 type ImageEntry struct {
