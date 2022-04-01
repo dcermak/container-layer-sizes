@@ -1,5 +1,3 @@
-import type { Layer } from "./fs-tree";
-
 import type { ContainerImage, DataRouteReply, ImageInspectInfo } from "./types";
 
 export interface ImageEntry {
@@ -9,11 +7,11 @@ export interface ImageEntry {
 
 interface ImageHistoryEntry {
   readonly Tags: string[];
-  readonly Contents: { string: Layer };
+  readonly Contents: DataRouteReply;
   readonly InspectInfo: ImageInspectInfo;
 }
 
-type HistoryT = Record<string, ImageHistoryEntry>; //{ string: ImageHistoryEntry };
+type HistoryT = Record<string, ImageHistoryEntry>;
 
 interface NewImageHistory {
   readonly Name: string;
