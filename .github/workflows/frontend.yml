@@ -23,3 +23,4 @@ jobs:
       - run: yarn install
       - run: yarn run build
       - run: yarn run check
+      - run: yarn run test
