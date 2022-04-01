@@ -4,6 +4,7 @@
     type ImageEntry,
     type ImageHistory
   } from "./backend-storage";
+  import ContainerImageTable from "./ContainerImageTable.svelte";
 
   let allImagesPromise: Promise<ImageEntry[]> | undefined = undefined;
   let imageHistoryFetchPromises: Map<
@@ -14,8 +15,8 @@
   const backend = new BackendStorage();
 
   const fetchAllImages = (): void => {
-    allImagesPromise = undefined
-    imageHistoryFetchPromises = new Map()
+    allImagesPromise = undefined;
+    imageHistoryFetchPromises = new Map();
     allImagesPromise = backend.fetchAllImages();
   };
 
@@ -41,13 +42,17 @@
             >Fetch the history of this image</button
           >
         {:else}
-          {@debug imageHistoryFetchPromises}
           {#await imageHistoryFetchPromises.get(img.ID)}
             Fetching the history of {img.Name}
           {:then data}
-            {@debug data}
-            {#each Object.keys(data.History) as hash}
-              {hash}<br />
+            {#each Object.entries(data.History) as entry}
+              {entry[0]}<br />
+              <ContainerImageTable
+                containerImageName={img.Name}
+                imageInfo={entry[1].InspectInfo}
+                showPullProgress={false}
+                open={false}
+              />
             {/each}
           {/await}
         {/if}
