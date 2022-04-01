@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from "svelte";
   import Sunburst from "sunburst-chart";
   import type { SunburstChartInstance } from "sunburst-chart";
   import type { DataRouteReply } from "./types";
@@ -14,17 +13,10 @@
   let showCreatedBy: boolean = true;
   let trimDigestTo: number = -1;
 
-  let plotDiv: HTMLElement | undefined = undefined;
+  let plotDiv: HTMLElement;
   let digest: string;
 
   let graph: SunburstChartInstance | undefined = undefined;
-
-  onMount(() => {
-    plotDiv = document.getElementById("plot_layers");
-    if (plotDiv === undefined) {
-      throw new Error("Did not get the 'plot_layers' div");
-    }
-  });
 
   const drawPlot = () => {
     plotDiv.innerHTML = "";
@@ -49,5 +41,5 @@
     >
   </form>
 
-  <div id="plot_layers" />
+  <div bind:this={plotDiv} />
 {/if}
