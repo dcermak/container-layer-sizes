@@ -18,10 +18,7 @@ module.exports = {
         test: /\.(html|svelte)$/,
         use: {
           loader: "svelte-loader",
-          options: {
-            emitCss: true,
-            preprocess: SveltePreprocess()
-          }
+          options: { preprocess: SveltePreprocess() }
         }
       },
       {

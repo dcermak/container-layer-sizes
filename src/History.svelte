@@ -88,6 +88,7 @@
         .minSliceAngle(0.2)
         .color((d) => d.color)
         .tooltipContent((_d, node) => `Size: <i>${formatByte(node.value)}</i>`)
+        .width(window.innerWidth / 2)
         .data(data)(div);
 
       return g;
@@ -113,16 +114,11 @@
 
 <button on:click={fetchAllImages}>Fetch all images on the backend</button><br />
 
-<!-- <table> -->
-<!--   <tr> -->
-<!--     <td> -->
-<div bind:this={leftPlot} />
-<!-- </td> -->
-<!-- <td> -->
-<div bind:this={rightPlot} />
-<!-- </td> -->
-<!--   </tr> -->
-<!-- </table> -->
+<div class="row">
+  <div bind:this={leftPlot} class="column" />
+  <div bind:this={rightPlot} class="column" />
+</div>
+
 {#if allImagesPromise !== undefined}
   {#await allImagesPromise}
     Fetching all images from the backend
@@ -170,3 +166,16 @@
     {/if}
   {/await}
 {/if}
+
+<style>
+  .column {
+    float: left;
+    width: 50%;
+  }
+
+  .row:after {
+    content: "";
+    display: table;
+    clear: both;
+  }
+</style>
