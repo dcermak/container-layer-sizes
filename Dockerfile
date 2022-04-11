@@ -4,8 +4,8 @@ COPY . /app/
 
 RUN zypper -n ref && \
     zypper -n in --allow-downgrade libgpgme-devel libassuan-devel libbtrfs-devel device-mapper-devel awk
-RUN go build
-RUN for lib in $(ldd container-layer-sizes |grep '=>'|awk '{print $3}'); do \
+RUN go build ./bin/analyzer && go build ./bin/storage
+RUN for lib in $(ldd analyzer |grep '=>'|awk '{print $3}'); do \
         pkg=$(rpm -q --whatprovides $lib); \
         if [[ ! $pkg =~ glibc ]]; then zypper download $pkg; fi; \
     done
@@ -16,10 +16,20 @@ COPY . /app/
 
 RUN npm -g install yarn && yarn install && yarn run buildProduction
 
+
+FROM registry.suse.com/bci/bci-micro:15.3 as storage-backend-deploy
+WORKDIR /app/
+COPY --from=go-builder /app/storage .
+
+EXPOSE 4040
+
+ENTRYPOINT ["/app/storage"]
+
+
 FROM registry.suse.com/bci/bci-minimal:15.3 as deploy
 WORKDIR /app/
-COPY --from=go-builder /app/container-layer-sizes .
-COPY --from=node-builder /app/dist/ dist/
+COPY --from=go-builder /app/analyzer .
+COPY --from=node-builder /app/public/ public/
 COPY --from=go-builder /var/cache/zypp/packages/SLE_BCI/x86_64/ .
 
 RUN rpm -i --nodeps --force *rpm && rm -rf *rpm
@@ -32,4 +42,4 @@ graphroot = "/var/lib/containers/storage"' > /etc/containers/storage.conf
 
 EXPOSE 5050
 
-ENTRYPOINT ["/app/container-layer-sizes", "--no-rootless"]
+ENTRYPOINT ["/app/analyzer", "--no-rootless"]

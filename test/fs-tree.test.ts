@@ -1,54 +1,79 @@
-import { Dir, FsSize } from "../src/fs-tree";
-import { describe, it } from "mocha";
 import { expect } from "chai";
+import { it, describe } from "mocha";
 
-describe("FsSize", () => {
-  it("is empty when Dir is empty", () => {
-    const fS = new FsSize({
-      dirname: "/",
-      total_size: 0,
-      files: {},
-      directories: {}
-    });
+import { compareDirsToDataNodes, Dir } from "../src/fs-tree";
 
-    expect(fS.labels.length).to.equal(0);
-  });
-
-  it("Correctly creates the fs structure", () => {
-    const d: Dir = {
-      dirname: "/",
-      total_size: 1000,
-      files: {
-        file_1: 1,
-        file_2: 2
+describe("compareDirsToDataNodes", () => {
+  const d1: Dir = {
+    dirname: "/",
+    total_size: 100,
+    files: { secret: 10, foobar: 20 },
+    directories: {
+      etc: {
+        total_size: 10,
+        dirname: "etc",
+        directories: {},
+        files: { "os-release": 10 }
       },
-      directories: {
-        etc: {
-          total_size: 100,
-          dirname: "etc",
-          files: { "os-release": 3, passwd: 4 },
-          directories: {}
-        }
+      tmp: {
+        total_size: 0,
+        dirname: "tmp",
+        directories: {},
+        files: {}
       }
-    };
+    }
+  };
 
-    const fS = new FsSize(d);
+  const d2: Dir = {
+    dirname: "/",
+    total_size: 101,
+    files: { asdf: 15, foobar: 15, iAmOnlyInD2: 3 },
+    directories: {
+      etc: {
+        total_size: 10,
+        dirname: "etc",
+        directories: {},
+        files: { "os-release": 10, product: 1 }
+      }
+    }
+  };
 
-    expect(fS.labels).to.deep.equal([
-      "file_1",
-      "file_2",
-      "etc",
-      "os-release",
-      "passwd"
-    ]);
-    expect(fS.ids).to.deep.equal([
-      "/file_1",
-      "/file_2",
-      "/etc",
-      "/etc/os-release",
-      "/etc/passwd"
-    ]);
-    expect(fS.values).to.deep.equal([1, 2, 100, 3, 4]);
-    expect(fS.parents).to.deep.equal(["", "", "", "/etc", "/etc"]);
+  it("creates the correct data structures", () => {
+    const [node1, node2] = compareDirsToDataNodes(d1, d2);
+    expect(node1).to.deep.equal({
+      name: "/",
+      value: 0,
+      children: [
+        { name: "secret", value: 10, color: "blue" },
+        { name: "foobar", color: "red", value: 20 },
+        {
+          name: "etc",
+          color: "yellow",
+          value: 0,
+          children: [{ name: "os-release", value: 10, color: "yellow" }]
+        },
+        { name: "tmp", value: 0, color: "blue", children: [] }
+      ],
+      color: "green"
+    });
+    expect(node2).to.deep.equal({
+      name: "/",
+      value: 0,
+      children: [
+        { name: "asdf", value: 15, color: "blue" },
+        { name: "foobar", value: 15, color: "green" },
+        { name: "iAmOnlyInD2", color: "blue", value: 3 },
+        {
+          name: "etc",
+          color: "yellow",
+          value: 0,
+          children: [
+            { name: "os-release", value: 10, color: "yellow" },
+            { name: "product", value: 1, color: "blue" }
+          ]
+        }
+      ],
+      color: "red"
+    });
   });
 });

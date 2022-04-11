@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go: ["1.16", "1.17"]
+        go: ["1.17", "1.18"]
 
     name: Go unit tests
     steps:
@@ -35,4 +35,18 @@ jobs:
         with:
           go-version: ${{ matrix.go }}
 
-      - run: go test
+      - name: build the images required for the tests
+        run: ./test_data/setup_images.sh /tmp/img_dir
+
+      - name: run tests with coverage
+        run: |
+          go test -race -coverprofile=analyzer.out -covermode=atomic ./bin/analyzer
+          go test -race -coverprofile=storage.out -covermode=atomic ./bin/storage
+          go test -race -coverprofile=pkg.out -covermode=atomic ./pkg
+        env:
+          IMG_DIR: /tmp/img_dir
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v2
+        with:
+          files: ./analyzer.out,./storage.out,./pkg.out

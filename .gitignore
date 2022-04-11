@@ -5,3 +5,10 @@ container-layer-sizes
 dist/tsconfig.tsbuildinfo
 dist/src/
 dist/bundle.js.LICENSE.txt
+*.sqlite3
+/storage
+/analyzer
+/public/build/
+/public/src/
+/public/tsconfig.tsbuildinfo
+/*.out
