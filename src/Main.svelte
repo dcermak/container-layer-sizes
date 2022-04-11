@@ -1,7 +1,7 @@
 <script lang="ts">
   import ImageInformation from "./ImageInformation.svelte";
   import Plot from "./Plot.svelte";
-  import { ExtractedDigest, PageState, TaskState } from "./types";
+  import { type ExtractedDigest, PageState, TaskState } from "./types";
   import type { DataRouteReply, Task } from "./types";
   import Storage from "./Storage.svelte";
   import { pageState, activeTask } from "./stores";

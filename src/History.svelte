@@ -13,7 +13,7 @@
   import {
     compareDirsToDataNodes,
     findNodeInOtherGraph,
-    Layer
+    type Layer
   } from "./fs-tree";
 
   let showCreatedBy: boolean = true;
