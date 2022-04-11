@@ -116,6 +116,10 @@ type ContainerImage struct {
 	/// The tag via which this image was fetched
 	Tag string
 
+	/// Non-nil if we are interested in a *specific* image, defined by a hash digest.
+	/// If nil, the default will be used (the latest available for the current platform)
+	RemoteDigest *string
+
 	Transport string
 
 	Manifest Manifest
@@ -323,6 +327,7 @@ func NewTask(imageUrl string) (*Task, error) {
 	Image := ContainerImage{
 		Image:             urlWithoutTransport,
 		Tag:               tag,
+		RemoteDigest:      remoteDigest,
 		Transport:         transportName,
 		layers:            &layers,
 		remoteReference:   remoteReference,

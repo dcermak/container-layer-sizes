@@ -40,6 +40,7 @@ export interface ContainerImage {
   readonly Image: string;
   readonly Tag: string;
   readonly Transport: string;
+  readonly RemoteDigest: string;
   readonly Manifest: Manifest;
   readonly ImageDigest: string;
   readonly ImageInfo: ImageInspectInfo | undefined | null;
