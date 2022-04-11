@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import { it, describe } from "mocha";
 
-import { compareDirsToDataNodes, Dir } from "../src/fs-tree";
+import { compareDirsToDataNodes, type Dir } from "../src/fs-tree";
 
 describe("compareDirsToDataNodes", () => {
   const d1: Dir = {
