@@ -27,6 +27,7 @@ import (
 	"github.com/containers/storage/pkg/reexec"
 	"github.com/containers/storage/pkg/unshare"
 
+	"github.com/opencontainers/go-digest"
 	ispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/opencontainers/umoci"
 	"github.com/opencontainers/umoci/oci/cas/dir"
@@ -411,7 +412,7 @@ func (t *Task) Process() {
 	t.State = TaskStatePulling
 
 	if t.Image.ImageInfo == nil {
-		t.Image.ImageInfo, err = InspectImage(t.Image.remoteReference, t.ctx)
+		t.Image.ImageInfo, err = InspectImage(t.Image.remoteReference, t.ctx, t.Image.RemoteDigest)
 		if err != nil {
 			setError(err)
 			return
@@ -612,7 +613,7 @@ type Manifest struct {
 	Manifests     []ExtractedDigest `json:"manifests"`
 }
 
-func InspectImage(ref types.ImageReference, ctx context.Context) (*types.ImageInspectInfo, error) {
+func InspectImage(ref types.ImageReference, ctx context.Context, imageDigest *string) (*types.ImageInspectInfo, error) {
 	sys := types.SystemContext{}
 
 	log.WithFields(
@@ -625,7 +626,7 @@ func InspectImage(ref types.ImageReference, ctx context.Context) (*types.ImageIn
 	}
 	defer imgSrc.Close()
 
-	img, err := image.FromUnparsedImage(ctx, nil, image.UnparsedInstance(imgSrc, nil))
+	img, err := image.FromUnparsedImage(ctx, nil, image.UnparsedInstance(imgSrc, (*digest.Digest)(imageDigest)))
 	if err != nil {
 		log.Trace("Failed to generate a new image from an unparsed image")
 		return nil, err
