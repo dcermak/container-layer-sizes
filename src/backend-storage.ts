@@ -67,7 +67,7 @@ export class BackendStorage {
       ).json();
     } catch {}
 
-    const currentEntryKey = image.ImageDigest;
+    const currentEntryKey = image.OciImageDigest;
 
     const existingHistory =
       historyWithMatchingName !== undefined &&

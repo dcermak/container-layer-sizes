@@ -128,7 +128,7 @@ type ContainerImage struct {
 	ImageInfo *types.ImageInspectInfo
 
 	/// The digest of this image in oci form
-	ImageDigest string
+	OciImageDigest string
 
 	layers *internal.LayerSizes
 
@@ -453,7 +453,7 @@ func (t *Task) Process() {
 		setError(err)
 		return
 	}
-	t.Image.ImageDigest = manifest.Config.Digest
+	t.Image.OciImageDigest = manifest.Config.Digest
 
 	t.State = TaskStateAnalyzing
 	layers, err := CalculateContainerLayerSizes(t.tempdir, manifest)
