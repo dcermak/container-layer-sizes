@@ -302,11 +302,11 @@ func NewTask(imageUrl string) (*Task, error) {
 		}
 
 		urlWithoutTransport = name
-	}
 
-	localReference, err = storage.Transport.ParseReference(urlWithoutTransport)
-	if err != nil {
-		return nil, err
+		localReference, err = storage.Transport.ParseReference(urlWithoutTransport)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if tag == "" {
