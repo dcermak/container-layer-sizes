@@ -335,15 +335,18 @@ func NewTask(imageUrl string) (*Task, error) {
 		ociLocalReference: ociLocalReference,
 	}
 
-	return &Task{
-			Image:   Image,
-			State:   TaskStateNew,
-			tempdir: tempdir,
-			error:   nil,
-			ctx:     ctx,
-			cancel:  cancel,
-		},
-		nil
+	task := Task{
+		Image:   Image,
+		State:   TaskStateNew,
+		tempdir: tempdir,
+		error:   nil,
+		ctx:     ctx,
+		cancel:  cancel,
+	}
+
+	log.WithFields(logrus.Fields{"Task": task}).Info("Created task")
+
+	return &task, nil
 }
 
 func (t *Task) Process() {
