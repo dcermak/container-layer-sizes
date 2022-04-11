@@ -5,7 +5,6 @@ const SveltePreprocess = require("svelte-preprocess");
 
 module.exports = {
   entry: "./src/main.ts",
-
   devtool: "inline-source-map",
   module: {
     rules: [
