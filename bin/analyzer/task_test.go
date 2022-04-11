@@ -208,3 +208,34 @@ func TestIntegration(t *testing.T) {
 		}
 	}
 }
+
+func TestGetNameTagFromUrlWithoutTag(t *testing.T) {
+	url := "docker.io/library/node"
+	name, tag, digest, err := getNameTagDigestFromUrl(url)
+	assert.NoError(t, err)
+	assert.Equal(t, name, url)
+	assert.Equal(t, "", tag)
+	assert.Nil(t, digest)
+}
+
+func TestGetNameTagFromUrlWithTag(t *testing.T) {
+	expectedName := "registry.opensuse.org/opensuse/tumbleweed"
+	expectedTag := "20220408"
+
+	name, tag, digest, err := getNameTagDigestFromUrl(expectedName + ":" + expectedTag)
+	assert.NoError(t, err)
+	assert.Equal(t, expectedName, name)
+	assert.Equal(t, expectedTag, tag)
+	assert.Nil(t, digest)
+}
+
+func TestGetNameTagFromUrlWithDigest(t *testing.T) {
+	expectedName := "registry.fedoraproject.org/fedora"
+	expectedDigest := "sha256:e78ff7d4647fe92ece42752a2cef3a14c7db8c2116d541a2e29e8707bf2a82ad"
+
+	name, tag, digest, err := getNameTagDigestFromUrl(expectedName + "@" + expectedDigest)
+	assert.NoError(t, err)
+	assert.Equal(t, expectedName, name)
+	assert.Equal(t, "", tag)
+	assert.Equal(t, expectedDigest, *digest)
+}

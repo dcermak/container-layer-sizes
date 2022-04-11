@@ -173,17 +173,25 @@ func (t *Task) MarshalJSON() ([]byte, error) {
 	}{Error: errMsg, Alias: (*Alias)(t)})
 }
 
-func getNameTagFromUrl(u string) (name string, tag string, err error) {
+func getNameTagDigestFromUrl(u string) (name string, tag string, digest *string, err error) {
+	if nameAndDigest := strings.Split(u, "@"); len(nameAndDigest) > 2 {
+		return "", "", nil, errors.New(
+			fmt.Sprintf("Invalid image name: %s", u),
+		)
+	} else if len(nameAndDigest) == 2 {
+		return nameAndDigest[0], "", &nameAndDigest[1], nil
+	}
+
 	nameAndTag := strings.Split(u, ":")
 
 	if len(nameAndTag) == 0 || len(nameAndTag) > 2 {
-		return "", "", errors.New(
+		return "", "", nil, errors.New(
 			fmt.Sprintf("Invalid image name: %s", u),
 		)
 	} else if len(nameAndTag) == 2 {
-		return nameAndTag[0], nameAndTag[1], nil
+		return nameAndTag[0], nameAndTag[1], nil, nil
 	} else {
-		return u, "", nil
+		return u, "", nil, nil
 	}
 }
 
@@ -195,6 +203,7 @@ func NewTask(imageUrl string) (*Task, error) {
 	layers := make(internal.LayerSizes)
 
 	var remoteReference, localReference types.ImageReference
+	var remoteDigest *string
 
 	parts := strings.Split(imageUrl, ":")
 
@@ -233,7 +242,7 @@ func NewTask(imageUrl string) (*Task, error) {
 			return nil, err
 		}
 
-		urlWithoutTransport, tag, err = getNameTagFromUrl(urlWithoutTransport)
+		urlWithoutTransport, tag, remoteDigest, err = getNameTagDigestFromUrl(urlWithoutTransport)
 		if err != nil {
 			return nil, err
 		}
@@ -280,13 +289,13 @@ func NewTask(imageUrl string) (*Task, error) {
 		// => if imageName has a tag => use it
 		// => if imageName has no tag => take the one from imageUrl
 		var name string
-		name, tag, err = getNameTagFromUrl(imageName)
+		name, tag, remoteDigest, err = getNameTagDigestFromUrl(imageName)
 		if err != nil {
 			return nil, err
 		}
 
 		if tag == "" {
-			_, tag, err = getNameTagFromUrl(urlWithoutTransport)
+			_, tag, remoteDigest, err = getNameTagDigestFromUrl(urlWithoutTransport)
 			if err != nil {
 				return nil, err
 			}
