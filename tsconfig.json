@@ -6,6 +6,7 @@
     "declarationMap": true,
     "composite": true,
     "allowJs": false,
+    "checkJs": false,
     "sourceMap": true,
     "noImplicitAny": true,
     "noUnusedLocals": true,
