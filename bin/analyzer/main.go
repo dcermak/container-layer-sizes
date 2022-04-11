@@ -786,6 +786,38 @@ func main() {
 		}
 	}()
 
+	http.HandleFunc("/image", func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, fmt.Sprintf("Error parsing form data: %s", err), http.StatusBadRequest)
+			return
+		}
+		url := r.FormValue("url")
+		if url == "" {
+			http.Error(w, "Parameter url was not provided", http.StatusBadRequest)
+			return
+		}
+
+		platformDigests, err := FetchImagePlatformDigests(url)
+		if err != nil {
+			http.Error(
+				w,
+				fmt.Sprintf("Error fetching the image platforms: %s", err),
+				http.StatusBadRequest,
+			)
+			return
+		}
+		payload, err := json.Marshal(platformDigests)
+		if err != nil {
+			http.Error(
+				w,
+				fmt.Sprintf("Error marshalling the platforms to json: %s", err),
+				http.StatusInternalServerError,
+			)
+			return
+		}
+		fmt.Fprint(w, string(payload))
+	})
+
 	http.HandleFunc("/data", func(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseForm(); err != nil {
 			http.Error(w, fmt.Sprintf("Error parsing form data: %s", err), http.StatusBadRequest)
