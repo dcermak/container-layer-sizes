@@ -716,18 +716,18 @@ func main() {
 
 	http.HandleFunc("/data", func(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseForm(); err != nil {
-			http.Error(w, fmt.Sprintf("Error parsing form data: %s", err), 400)
+			http.Error(w, fmt.Sprintf("Error parsing form data: %s", err), http.StatusBadRequest)
 			return
 		}
 		id := r.FormValue("id")
 		if id == "" {
-			http.Error(w, "Parameter id was not provided", 400)
+			http.Error(w, "Parameter id was not provided", http.StatusBadRequest)
 			return
 		}
 
 		t, err := tq.GetTask(id)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("Got an error fetching the task with the id %s: %s", id, err.Error()), 500)
+			http.Error(w, fmt.Sprintf("Got an error fetching the task with the id %s: %s", id, err.Error()), http.StatusInternalServerError)
 			return
 		}
 
@@ -737,7 +737,7 @@ func main() {
 				fmt.Sprintf(
 					"Cannot get data from task %s, task is not in finished state (got state %s)",
 					id, TaskStateToStr(t.State)),
-				500,
+				http.StatusInternalServerError,
 			)
 			return
 		}
@@ -750,16 +750,17 @@ func main() {
 				"error":  err,
 			}).Error("Failed to marshal the layers to json")
 
-			http.Error(w, err.Error(), 500)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 		} else {
 			fmt.Fprint(w, string(j))
 		}
 		log.WithFields(logrus.Fields{"id": id}).Trace("send data, removing task from queue")
 		tq.RemoveTask(id)
 	})
+
 	http.HandleFunc("/task", func(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseForm(); err != nil {
-			http.Error(w, fmt.Sprintf("Error parsing form data: %s", err), 400)
+			http.Error(w, fmt.Sprintf("Error parsing form data: %s", err), http.StatusBadRequest)
 			return
 		}
 
@@ -767,12 +768,12 @@ func main() {
 		case "POST":
 			img := r.PostFormValue("image")
 			if img == "" {
-				http.Error(w, "No image provided", 400)
+				http.Error(w, "No image provided", http.StatusBadRequest)
 				return
 			}
 
 			if id, t, err := tq.AddTask(img); err != nil {
-				http.Error(w, fmt.Sprintf("Error creating task: %s", err), 400)
+				http.Error(w, fmt.Sprintf("Error creating task: %s", err), http.StatusBadRequest)
 			} else {
 				jobs <- t
 				fmt.Fprintf(w, id)
@@ -783,14 +784,14 @@ func main() {
 		case "DELETE":
 			id := r.FormValue("id")
 			if id == "" {
-				http.Error(w, "No task id provided", 400)
+				http.Error(w, "No task id provided", http.StatusBadRequest)
 				return
 			}
 			if task, err := tq.GetTask(id); err != nil {
-				http.Error(w, err.Error(), 400)
+				http.Error(w, err.Error(), http.StatusBadRequest)
 			} else if r.Method == "GET" {
 				if j, err := json.Marshal(task); err != nil {
-					http.Error(w, err.Error(), 500)
+					http.Error(w, err.Error(), http.StatusInternalServerError)
 				} else {
 					fmt.Fprint(w, string(j))
 				}
@@ -804,7 +805,7 @@ func main() {
 						logrus.Fields{"error": err},
 					).Error("Failed to remove task")
 
-					http.Error(w, err.Error(), 500)
+					http.Error(w, err.Error(), http.StatusInternalServerError)
 					return
 				}
 
