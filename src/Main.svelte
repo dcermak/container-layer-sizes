@@ -1,7 +1,7 @@
 <script lang="ts">
   import ImageInformation from "./ImageInformation.svelte";
   import Plot from "./Plot.svelte";
-  import { PageState, TaskState } from "./types";
+  import { ExtractedDigest, PageState, TaskState } from "./types";
   import type { DataRouteReply, Task } from "./types";
   import Storage from "./Storage.svelte";
   import { pageState, activeTask } from "./stores";
@@ -24,16 +24,48 @@
   }
 
   const TRANSPORTS = [
-    { value: Transport.DOCKER, description: "Container Registry" },
-    { value: Transport.DOCKER_ARCHIVE, description: "local docker archive" },
+    { value: Transport.DOCKER, description: "Container registry" },
+    { value: Transport.DOCKER_ARCHIVE, description: "Local docker archive" },
     {
       value: Transport.CONTAINERS_STORAGE,
-      description: "local podman container image"
+      description: "Local podman container image"
     },
-    { value: Transport.BACKEND, description: "previously analyzed image" }
+    { value: Transport.BACKEND, description: "Previously analyzed image" }
   ];
 
   let dataPromise: Promise<DataRouteReply> | undefined = undefined;
+
+  let imageReadyToAnalyze: boolean = false;
+  $: {
+    if (transport === Transport.DOCKER) {
+      imageReadyToAnalyze = chosenPlatform !== undefined;
+    } else {
+      imageReadyToAnalyze = true;
+    }
+  }
+
+  let platformDigestsPromise: Promise<ExtractedDigest[]> | undefined =
+    undefined;
+  let chosenPlatform: ExtractedDigest | undefined = undefined;
+
+  const fetchPlatformDigests = () => {
+    chosenPlatform = undefined;
+    platformDigestsPromise = undefined;
+
+    if (imageUrl === undefined || imageUrl === "") {
+      alert("Please provide an image url");
+      return;
+    }
+
+    platformDigestsPromise = fetch(`/image?url=${transport}${imageUrl}`).then(
+      (resp) => {
+        if (!resp.ok) {
+          throw new Error(resp.statusText);
+        }
+        return resp.json();
+      }
+    );
+  };
 
   const pullImage = async () => {
     if (imageUrl === undefined || imageUrl === "") {
@@ -51,12 +83,33 @@
       ) {
         alert("The backend and upload sources are not yet supported");
       }
+
+      let fullUrl = transport + imageUrl;
+
+      // for docker transports, the user might select an architecture, append
+      // its digest to the url with a "@", but only if the user did not specify
+      // a specific digest themselves
+      if (
+        chosenPlatform !== undefined &&
+        transport === Transport.DOCKER &&
+        imageUrl.indexOf("@") === -1
+      ) {
+        // if the url includes a tag, we need to drop it, as we can only set a
+        // tag or a digest, not both
+        if (imageUrl.indexOf(":") !== -1) {
+          fullUrl =
+            transport + imageUrl.split(":")[0] + "@" + chosenPlatform.digest;
+        } else {
+          fullUrl = transport + imageUrl + "@" + chosenPlatform.digest;
+        }
+      }
+
       const resp = await fetch("/task", {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded"
         },
-        body: `image=${transport}${imageUrl}`
+        body: `image=${fullUrl}`
       });
       if (resp.status !== 200) {
         throw new Error(await resp.text());
@@ -130,9 +183,32 @@
   {:else}
     <input bind:value={imageUrl} type="text" />
   {/if}
-  <button type="submit">Pull and analyze this image</button>
-  {#if appStatus === PageState.Pulling}
-    <button on:click={cancelPull}>Cancel pull/analysis</button>
+  {#if transport === Transport.DOCKER}
+    <button on:click={fetchPlatformDigests} type="button"
+      >Retrieve available platforms</button
+    >
+    {#if platformDigestsPromise !== undefined}
+      {#await platformDigestsPromise then platformDigest}
+        <select bind:value={chosenPlatform}>
+          {#each platformDigest as digest}
+            <option value={digest}>
+              {digest.platform
+                .architecture}{#if digest.platform.variant !== undefined && digest.platform.variant !== ""}/{digest
+                  .platform.variant}{/if}
+              on {digest.platform.os}
+            </option>
+          {/each}
+        </select>
+      {:catch err}
+        Failed to fetch the list of platforms, got {err}
+      {/await}
+    {/if}
+  {/if}
+  {#if imageReadyToAnalyze}
+    <button type="submit">Pull and analyze this image</button>
+    {#if appStatus === PageState.Pulling}
+      <button on:click={cancelPull}>Cancel pull/analysis</button>
+    {/if}
   {/if}
 </form>
 
