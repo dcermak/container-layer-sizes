@@ -349,6 +349,53 @@ func NewTask(imageUrl string) (*Task, error) {
 	return &task, nil
 }
 
+/// Fetches the digests of a image with the given url and returns an array of
+/// Digests where the `platform` field is not empty.
+/// This can be used to get the digests of all available architectures of this
+/// image.
+func FetchImagePlatformDigests(imageUrl string) ([]ExtractedDigest, error) {
+	log.WithFields(logrus.Fields{"image url": imageUrl}).Info(
+		"Fetching image platforms",
+	)
+
+	remoteReference, err := alltransports.ParseImageName(imageUrl)
+	if err != nil {
+		return nil, err
+	}
+
+	imgSrc, err := remoteReference.NewImageSource(backgroundContext, &types.SystemContext{})
+	if err != nil {
+		return nil, err
+	}
+	defer imgSrc.Close()
+
+	remoteManifest, _, err := imgSrc.GetManifest(backgroundContext, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var manifest Manifest
+	err = json.Unmarshal(remoteManifest, &manifest)
+	if err != nil {
+		return nil, err
+	}
+
+	log.WithFields(logrus.Fields{"manifest": manifest}).Debug(
+		"received and parsed a manifest",
+	)
+
+	availableDigests := make([]ExtractedDigest, 0)
+	for _, manifestPerArch := range manifest.Manifests {
+		p := manifestPerArch.Platform
+		// don't add digests where the platform field is empty
+		if p.Architecture != "" || p.Os != "" || p.Variant != "" {
+			availableDigests = append(availableDigests, manifestPerArch)
+		}
+	}
+
+	return availableDigests, nil
+}
+
 func (t *Task) Process() {
 	var err error
 
@@ -544,10 +591,17 @@ func (tq *TaskQueue) RemoveTask(id string) error {
 	}
 }
 
+type Platform struct {
+	Architecture string `json:"architecture"`
+	Os           string `json:"os"`
+	Variant      string `json:"variant"`
+}
+
 type ExtractedDigest struct {
-	MediaType string `json:"mediaType"`
-	Size      int    `json:"size"`
-	Digest    string `json:"digest"`
+	MediaType string   `json:"mediaType"`
+	Size      int      `json:"size"`
+	Digest    string   `json:"digest"`
+	Platform  Platform `json:"platform"`
 }
 
 type Manifest struct {
@@ -555,6 +609,7 @@ type Manifest struct {
 	MediaType     string            `json:"mediaType"`
 	Config        ExtractedDigest   `json:"config"`
 	Layers        []ExtractedDigest `json:"layers"`
+	Manifests     []ExtractedDigest `json:"manifests"`
 }
 
 func InspectImage(ref types.ImageReference, ctx context.Context) (*types.ImageInspectInfo, error) {

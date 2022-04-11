@@ -23,10 +23,17 @@ export interface PullProgress {
   string: LayerDownloadProgress;
 }
 
+export interface Platform {
+  readonly architecture: string;
+  readonly os: string;
+  readonly variant?: string;
+}
+
 export interface ExtractedDigest {
   readonly mediaType: string;
   readonly size: number;
   readonly digest: string;
+  readonly platform: Platform;
 }
 
 export interface Manifest {
@@ -34,6 +41,7 @@ export interface Manifest {
   readonly mediaType: string;
   readonly config: ExtractedDigest;
   readonly layers: readonly ExtractedDigest[];
+  readonly manifests: readonly ExtractedDigest[];
 }
 
 export interface ContainerImage {
