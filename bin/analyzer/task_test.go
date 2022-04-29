@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/containers/storage/pkg/reexec"
+
 	internal "github.com/dcermak/container-layer-sizes/pkg"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,6 +19,7 @@ var imageTag = "localhost/container-layer-sizes-testimage"
 var rootDir, subDir internal.Dir
 
 func TestMain(m *testing.M) {
+	reexec.Init()
 	err := reexecForRootlessStorage()
 	if err != nil {
 		panic(err)

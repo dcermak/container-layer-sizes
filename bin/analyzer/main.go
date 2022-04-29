@@ -51,8 +51,6 @@ var neededCapabilities = []capability.Cap{
 }
 
 func reexecForRootlessStorage() error {
-	reexec.Init()
-
 	capabilities, err := capability.NewPid(0)
 	if err != nil {
 		return err
@@ -767,6 +765,7 @@ func main() {
 		rootless = false
 	}
 
+	reexec.Init()
 	if rootless {
 		err := reexecForRootlessStorage()
 		if err != nil {
