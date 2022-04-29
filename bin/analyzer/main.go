@@ -51,8 +51,6 @@ var neededCapabilities = []capability.Cap{
 }
 
 func reexecForRootlessStorage() error {
-	reexec.Init()
-
 	capabilities, err := capability.NewPid(0)
 	if err != nil {
 		return err
@@ -693,13 +691,13 @@ func CalculateContainerLayerSizes(unpackedImageDest string, manifest Manifest) (
 			return nil, err
 		}
 
-		format, err := archiver.Identify(archivePath, f)
+		format, archiveReader, err := archiver.Identify(archivePath, f)
 		if err != nil {
 			return nil, err
 		}
 
 		if ex, ok := format.(archiver.Extractor); ok {
-			err := ex.Extract(backgroundContext, f, nil, func(ctx context.Context, f archiver.File) error {
+			err := ex.Extract(backgroundContext, archiveReader, nil, func(ctx context.Context, f archiver.File) error {
 				if f.IsDir() {
 					return nil
 				}
@@ -767,6 +765,7 @@ func main() {
 		rootless = false
 	}
 
+	reexec.Init()
 	if rootless {
 		err := reexecForRootlessStorage()
 		if err != nil {
