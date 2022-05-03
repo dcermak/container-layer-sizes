@@ -4,7 +4,7 @@ go 1.16
 
 require (
 	github.com/containers/image/v5 v5.21.0
-	github.com/containers/storage v1.39.0
+	github.com/containers/storage v1.40.0
 	github.com/docker/distribution v2.8.1+incompatible
 	github.com/google/uuid v1.3.0
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible
