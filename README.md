@@ -52,7 +52,7 @@ spin.
 
 To build the analyzer on your machine, you'll need the following tools:
 
-- [podman](podman.io/) configured to work in rootless mode
+- [podman](https://podman.io/) configured to work in rootless mode
 - node.js and yarn
 - golang
 - the prerequisites to build `github.com/containers/image` (see
