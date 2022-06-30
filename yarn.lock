@@ -867,6 +867,14 @@ flat@^5.0.2:
   resolved "https://registry.yarnpkg.com/flat/-/flat-5.0.2.tgz#8ca6fe332069ffa9d324c327198c598259ceb241"
   integrity sha512-b6suED+5/3rTpUBdG1gupIl8MPFCAMA0QXwmljLhvCUKcUvdE4gWky9zpuGCcXHOsz4J9wPGNWq6OKpmIzz3hQ==
 
+float-tooltip@1:
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/float-tooltip/-/float-tooltip-1.1.0.tgz#ea534b187b36c2cd41f00acb9868a68719061024"
+  integrity sha512-GpS/nlUGh0mm1VJt2ybjbHvc25stuc/+oL1y5R8iIEuOrnqNXt9xfUQ52ELTRlfg+c8RzX61Xw2McQfwWvMJBA==
+  dependencies:
+    d3-selection "2 - 3"
+    kapsule "^1.13"
+
 fs.realpath@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/fs.realpath/-/fs.realpath-1.0.0.tgz#1504ad2523158caa40db4a2787cb01411994ea4f"
@@ -1639,10 +1647,10 @@ strip-json-comments@3.1.1:
   resolved "https://registry.yarnpkg.com/strip-json-comments/-/strip-json-comments-3.1.1.tgz#31f1281b3832630434831c310c01cccda8cbe006"
   integrity sha512-6fPc+R4ihwqP6N/aIv2f1gMH8lOVtWQHoqC4yK6oSDVVocumAsfCqjkXnqiYMhmMwS/mEHLp7Vehlt3ql6lEig==
 
-sunburst-chart@^1.15.3:
-  version "1.15.3"
-  resolved "https://registry.yarnpkg.com/sunburst-chart/-/sunburst-chart-1.15.3.tgz#ba9a791ecd80d15c7026a7a7f9d1d64a45725dce"
-  integrity sha512-R3bGAuRwGZkIecSsFD6+eo53+cn2OhLFWtcLx02laWle16AaeFDiWMFpIeDe3+Erg4TiyrZTGL73RCgcLmyR0w==
+sunburst-chart@^1.16.2:
+  version "1.16.2"
+  resolved "https://registry.yarnpkg.com/sunburst-chart/-/sunburst-chart-1.16.2.tgz#b28917642b0ba4dbd62e618c770504830625dc16"
+  integrity sha512-VwNbLAfIRs26haEsxyLO6jHMfP1SotszZbt0NNUw4GARu+Uhm3Hpe5cIMpf2aMOfUBi9gzbEVHb4sPN6vjdcJA==
   dependencies:
     accessor-fn "1"
     d3-hierarchy "1 - 3"
@@ -1652,6 +1660,7 @@ sunburst-chart@^1.15.3:
     d3-selection "2 - 3"
     d3-shape "1 - 3"
     d3-transition "2 - 3"
+    float-tooltip "1"
     kapsule "^1.13"
 
 supports-color@8.1.1, supports-color@^8.0.0:
