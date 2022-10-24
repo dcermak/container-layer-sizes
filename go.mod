@@ -15,7 +15,7 @@ require (
 	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.8.0
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
-	github.com/urfave/cli/v2 v2.8.1
+	github.com/urfave/cli/v2 v2.20.3
 )
 
 exclude github.com/docker/distributions v2.8.0+incompatible
