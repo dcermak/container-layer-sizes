@@ -1,4 +1,4 @@
-FROM registry.suse.com/bci/golang:1.17 as go-builder
+FROM registry.suse.com/bci/golang:1.19 as go-builder
 WORKDIR /app/
 COPY . /app/
 
@@ -17,7 +17,7 @@ COPY . /app/
 RUN npm -g install yarn && yarn install && yarn run buildProduction
 
 
-FROM registry.suse.com/bci/bci-micro:15.3 as storage-backend-deploy
+FROM registry.suse.com/bci/bci-micro:15.4 as storage-backend-deploy
 WORKDIR /app/
 COPY --from=go-builder /app/storage .
 
@@ -26,7 +26,7 @@ EXPOSE 4040
 ENTRYPOINT ["/app/storage"]
 
 
-FROM registry.suse.com/bci/bci-minimal:15.3 as deploy
+FROM registry.suse.com/bci/bci-minimal:15.4 as deploy
 WORKDIR /app/
 COPY --from=go-builder /app/analyzer .
 COPY --from=node-builder /app/public/ public/
