@@ -11,7 +11,7 @@
   },
   "license": "MIT",
   "dependencies": {
-    "sunburst-chart": "^1.15.3"
+    "sunburst-chart": "^1.15"
   },
   "scripts": {
     "clean": "rm -f dist/*js",
@@ -23,22 +23,22 @@
   },
   "devDependencies": {
     "@tsconfig/svelte": "^3.0",
-    "@types/chai": "^4.3.1",
-    "@types/mocha": "^9.1.1",
-    "chai": "^4.3.4",
-    "mocha": "^10.0.0",
-    "stream-browserify": "^3.0.0",
-    "svelte": "^3.0.0",
-    "svelte-check": "^2.7.0",
-    "svelte-loader": "^3.1.2",
-    "svelte-preprocess": "^4.10.6",
-    "tinro": "^0.6.12",
-    "ts-loader": "^9.2.9",
-    "ts-node": "^10.6.0",
-    "tslib": "^2.4.0",
-    "typescript": "^4.6.4",
-    "webpack": "^5.61.0",
-    "webpack-cli": "^4.9.1"
+    "@types/chai": "^4.3",
+    "@types/mocha": "^10.0",
+    "chai": "^4.3",
+    "mocha": "^10.0",
+    "stream-browserify": "^3.0",
+    "svelte": "^3.0",
+    "svelte-check": "^2.7",
+    "svelte-loader": "^3.1",
+    "svelte-preprocess": "^4.10",
+    "tinro": "^0.6",
+    "ts-loader": "^9.2",
+    "ts-node": "^10.6",
+    "tslib": "^2.4",
+    "typescript": "^4.6",
+    "webpack": "^5.61",
+    "webpack-cli": "^5.0"
   },
   "prettier": {
     "trailingComma": "none"
